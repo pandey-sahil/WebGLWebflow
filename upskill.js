@@ -1,7 +1,8 @@
- import * as THREE from 'https://esm.sh/three@0.148.0';
-  import { EffectComposer } from 'https://esm.sh/three@0.148.0/examples/jsm/postprocessing/EffectComposer.js';
-  import { RenderPass } from 'https://esm.sh/three@0.148.0/examples/jsm/postprocessing/RenderPass.js';
-  import { ShaderPass } from 'https://esm.sh/three@0.148.0/examples/jsm/postprocessing/ShaderPass.js';
+>
+  import * as THREE from 'https://cdn.skypack.dev/three@0.148.0';
+  import { EffectComposer } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/EffectComposer.js';
+  import { RenderPass } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/RenderPass.js';
+  import { ShaderPass } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/ShaderPass.js';
 
   const canvas = document.getElementById('glass-canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
@@ -10,17 +11,14 @@
 
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const geometry = new THREE.PlaneGeometry(2, 2);
 
-  const plane = new THREE.PlaneGeometry(2, 2);
-
-  // Load background texture (use your actual background image here)
-  const texture = new THREE.TextureLoader().load('https://picsum.photos/1024/768'); // or use your Webflow asset
-
+  // Use your background image here
+  const texture = new THREE.TextureLoader().load('https://picsum.photos/1024/768');
   const material = new THREE.MeshBasicMaterial({ map: texture });
-  const mesh = new THREE.Mesh(plane, material);
+  const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
 
-  // Setup post-processing
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
 
@@ -56,8 +54,6 @@
         }
 
         vec4 color = texture2D(tDiffuse, uv);
-
-        // Add a soft circular mask
         float circle = smoothstep(radius, radius - 0.01, dist);
         vec4 masked = mix(color, texture2D(tDiffuse, vUv), circle);
 
@@ -70,12 +66,9 @@
   shaderPass.renderToScreen = true;
   composer.addPass(shaderPass);
 
-  // Mouse position tracking
   window.addEventListener('mousemove', e => {
-    shader.uniforms.mouse.value.set(
-      e.clientX / window.innerWidth,
-      1 - e.clientY / window.innerHeight
-    );
+    shader.uniforms.mouse.value.x = e.clientX / window.innerWidth;
+    shader.uniforms.mouse.value.y = 1 - e.clientY / window.innerHeight;
   });
 
   window.addEventListener('resize', () => {
