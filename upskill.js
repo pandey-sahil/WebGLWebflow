@@ -1,4 +1,3 @@
->
   import * as THREE from 'https://cdn.skypack.dev/three@0.148.0';
   import { EffectComposer } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/EffectComposer.js';
   import { RenderPass } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/RenderPass.js';
