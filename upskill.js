@@ -1,8 +1,3 @@
- import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.module.js';
-  import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/postprocessing/EffectComposer.js';
-  import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/postprocessing/RenderPass.js';
-  import { ShaderPass } from 'https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/postprocessing/ShaderPass.js';
-
   const canvas = document.getElementById('glass-canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -17,8 +12,8 @@
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
 
-  const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
+  const composer = new THREE.EffectComposer(renderer);
+  composer.addPass(new THREE.RenderPass(scene, camera));
 
   const shader = {
     uniforms: {
@@ -61,7 +56,7 @@
     `
   };
 
-  const shaderPass = new ShaderPass(shader);
+  const shaderPass = new THREE.ShaderPass(shader);
   shaderPass.renderToScreen = true;
   composer.addPass(shaderPass);
 
