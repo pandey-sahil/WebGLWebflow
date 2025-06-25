@@ -1,7 +1,7 @@
-import * as THREE from 'https://cdn.skypack.dev/three@0.148.0';
-  import { EffectComposer } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/EffectComposer.js';
-  import { RenderPass } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/RenderPass.js';
-  import { ShaderPass } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/ShaderPass.js';
+ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.module.js';
+  import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/postprocessing/EffectComposer.js';
+  import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/postprocessing/RenderPass.js';
+  import { ShaderPass } from 'https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/postprocessing/ShaderPass.js';
 
   const canvas = document.getElementById('glass-canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
@@ -12,7 +12,7 @@ import * as THREE from 'https://cdn.skypack.dev/three@0.148.0';
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const geometry = new THREE.PlaneGeometry(2, 2);
 
-  const texture = new THREE.TextureLoader().load('https://picsum.photos/1920/1080'); // Replace with your background
+  const texture = new THREE.TextureLoader().load('https://picsum.photos/1920/1080');
   const material = new THREE.MeshBasicMaterial({ map: texture });
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
