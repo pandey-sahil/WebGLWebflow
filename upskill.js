@@ -1,4 +1,4 @@
-  import * as THREE from 'https://cdn.skypack.dev/three@0.148.0';
+import * as THREE from 'https://cdn.skypack.dev/three@0.148.0';
   import { EffectComposer } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/EffectComposer.js';
   import { RenderPass } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/RenderPass.js';
   import { ShaderPass } from 'https://cdn.skypack.dev/three@0.148.0/examples/jsm/postprocessing/ShaderPass.js';
@@ -12,8 +12,7 @@
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const geometry = new THREE.PlaneGeometry(2, 2);
 
-  // Use your background image here
-  const texture = new THREE.TextureLoader().load('https://picsum.photos/1024/768');
+  const texture = new THREE.TextureLoader().load('https://picsum.photos/1920/1080'); // Replace with your background
   const material = new THREE.MeshBasicMaterial({ map: texture });
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
@@ -44,17 +43,18 @@
         vec2 uv = vUv;
         vec2 m = mouse;
         float radius = 0.15;
+        float strength = 0.25;
 
-        vec2 diff = uv - m;
-        float dist = length(diff);
+        vec2 offset = uv - m;
+        float dist = length(offset);
 
         if (dist < radius) {
-          uv -= normalize(diff) * 0.05 * smoothstep(radius, 0.0, dist);
+          uv -= offset * strength * smoothstep(radius, 0.0, dist);
         }
 
-        vec4 color = texture2D(tDiffuse, uv);
+        vec4 base = texture2D(tDiffuse, uv);
         float circle = smoothstep(radius, radius - 0.01, dist);
-        vec4 masked = mix(color, texture2D(tDiffuse, vUv), circle);
+        vec4 masked = mix(base, texture2D(tDiffuse, vUv), circle);
 
         gl_FragColor = masked;
       }
@@ -65,9 +65,9 @@
   shaderPass.renderToScreen = true;
   composer.addPass(shaderPass);
 
-  window.addEventListener('mousemove', e => {
+  window.addEventListener('mousemove', (e) => {
     shader.uniforms.mouse.value.x = e.clientX / window.innerWidth;
-    shader.uniforms.mouse.value.y = 1 - e.clientY / window.innerHeight;
+    shader.uniforms.mouse.value.y = 1.0 - e.clientY / window.innerHeight;
   });
 
   window.addEventListener('resize', () => {
