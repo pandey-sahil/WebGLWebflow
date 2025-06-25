@@ -3,46 +3,65 @@
   import { RenderPass } from 'https://esm.sh/three@0.148.0/examples/jsm/postprocessing/RenderPass.js';
   import { ShaderPass } from 'https://esm.sh/three@0.148.0/examples/jsm/postprocessing/ShaderPass.js';
 
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-  camera.position.z = 2;
-
-  const renderer = new THREE.WebGLRenderer({ alpha: true });
+  const canvas = document.getElementById('glass-canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
+  renderer.setPixelRatio(window.devicePixelRatio);
 
-  // Add image plane
-  const texture = new THREE.TextureLoader().load("https://picsum.photos/400/300");
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+  const plane = new THREE.PlaneGeometry(2, 2);
+
+  // Load background texture (use your actual background image here)
+  const texture = new THREE.TextureLoader().load('https://picsum.photos/1024/768'); // or use your Webflow asset
+
   const material = new THREE.MeshBasicMaterial({ map: texture });
-  const geometry = new THREE.PlaneGeometry(1.5, 1);
-  const mesh = new THREE.Mesh(geometry, material);
+  const mesh = new THREE.Mesh(plane, material);
   scene.add(mesh);
 
-  // Post-processing
+  // Setup post-processing
   const composer = new EffectComposer(renderer);
-  const renderPass = new RenderPass(scene, camera);
-  composer.addPass(renderPass);
+  composer.addPass(new RenderPass(scene, camera));
 
   const shader = {
     uniforms: {
       tDiffuse: { value: null },
       mouse: { value: new THREE.Vector2(0.5, 0.5) },
+      resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
     },
     vertexShader: `
       varying vec2 vUv;
       void main() {
         vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        gl_Position = vec4(position, 1.0);
       }
     `,
     fragmentShader: `
       uniform sampler2D tDiffuse;
       uniform vec2 mouse;
+      uniform vec2 resolution;
       varying vec2 vUv;
+
       void main() {
-        float dist = distance(vUv, mouse);
-        vec2 uv = vUv + 0.03 * normalize(vUv - mouse) * smoothstep(0.3, 0.0, dist);
-        gl_FragColor = texture2D(tDiffuse, uv);
+        vec2 uv = vUv;
+        vec2 m = mouse;
+        float radius = 0.15;
+
+        vec2 diff = uv - m;
+        float dist = length(diff);
+
+        if (dist < radius) {
+          uv -= normalize(diff) * 0.05 * smoothstep(radius, 0.0, dist);
+        }
+
+        vec4 color = texture2D(tDiffuse, uv);
+
+        // Add a soft circular mask
+        float circle = smoothstep(radius, radius - 0.01, dist);
+        vec4 masked = mix(color, texture2D(tDiffuse, vUv), circle);
+
+        gl_FragColor = masked;
       }
     `
   };
@@ -51,9 +70,18 @@
   shaderPass.renderToScreen = true;
   composer.addPass(shaderPass);
 
+  // Mouse position tracking
   window.addEventListener('mousemove', e => {
-    shader.uniforms.mouse.value.x = e.clientX / window.innerWidth;
-    shader.uniforms.mouse.value.y = 1.0 - e.clientY / window.innerHeight;
+    shader.uniforms.mouse.value.set(
+      e.clientX / window.innerWidth,
+      1 - e.clientY / window.innerHeight
+    );
+  });
+
+  window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    shader.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
   });
 
   function animate() {
