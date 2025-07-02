@@ -45,6 +45,7 @@ const tunnelMaterial = new THREE.ShaderMaterial({
   fragmentShader: `
     precision mediump float;
     uniform vec3 color;
+    uniform float uLength; 
     varying float vZ;
     void main() {
       float fade = 1.0 - smoothstep(-uLength/2.0 + 5.0, -uLength/2.0, vZ);
