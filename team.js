@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 window.addEventListener('load', () => {
   const image = document.querySelector('img[webgl-grid-anime]');
-  const wrapper = document.getElementById('webgl-wrapper');
+  const wrapper = document.querySelector('.webgl-wrapper');
   const textureLoader = new THREE.TextureLoader();
 
   textureLoader.load(image.src, (texture) => {
