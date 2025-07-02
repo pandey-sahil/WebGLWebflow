@@ -8,7 +8,7 @@ const settings = {
   ease: 0.05,
   textSize: 1.0,
   text: "Team You Need",
-  textureURL: "/mnt/data/88a33ad3-8623-48f9-9436-e53ff59b2da7.png",
+  textureURL: "https://cdn.prod.website-files.com/681b5ed03f338b78fb6cd5ed/686367874c3399d5abb48eb8_Image%20(25).png",
   fontURL:
     "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/fonts/helvetiker_bold.typeface.json",
 };
