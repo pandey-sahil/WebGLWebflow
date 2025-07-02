@@ -1,27 +1,25 @@
 import * as THREE from "three";
+import { FontLoader } from "three/addons/loaders/FontLoader.js";
+import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 
-// ✅ SETTINGS
 const settings = {
-  text: "Team\nYou Need",
-  font: "Inter",
-  fontSize: 280,
-  textColor: "#ffffff",
+  text: "Team You Need",
+  fontSize: 10,
+  depth: 2,
+  color: "#ffffff",
   backgroundColor: "#000000",
-  aberration: 2.5,
-  ease: 0.08,
-  gridSize: 15.0,
-  waveFrequency: 25.0,
-  waveStrength: 0.005,
+  aberration: 1.0,
+  ease: 0.05,
+  waveFrequency: 30.0,
+  waveStrength: 0.003,
 };
 
-const container = document.getElementById("imageContainer");
-
-let scene, camera, renderer, mesh;
-let uniforms;
+let scene, camera, renderer, mesh, uniforms;
 let mouse = new THREE.Vector2(0.5, 0.5);
 let targetMouse = new THREE.Vector2(0.5, 0.5);
 let prevMouse = new THREE.Vector2(0.5, 0.5);
 
+// Shaders
 const vertexShader = `
   varying vec2 vUv;
   void main() {
@@ -31,100 +29,87 @@ const vertexShader = `
 `;
 
 const fragmentShader = `
-precision mediump float;
+  precision mediump float;
 
-varying vec2 vUv;
-uniform sampler2D u_texture;
-uniform vec2 u_mouse;
-uniform vec2 u_prevMouse;
-uniform float u_aberrationIntensity;
-uniform float u_time;
+  varying vec2 vUv;
+  uniform sampler2D u_texture;
+  uniform vec2 u_mouse;
+  uniform vec2 u_prevMouse;
+  uniform float u_aberrationIntensity;
+  uniform float u_time;
 
-void main() {
-  vec2 gridUV = floor(vUv * vec2(15.0)) / vec2(15.0);
-  vec2 centerOfPixel = gridUV + vec2(1.0 / 15.0, 1.0 / 15.0);
+  void main() {
+    vec2 gridUV = floor(vUv * vec2(20.0)) / vec2(20.0);
+    vec2 centerOfPixel = gridUV + vec2(1.0 / 20.0, 1.0 / 20.0);
 
-  vec2 mouseDirection = u_mouse - u_prevMouse;
-  vec2 pixelToMouseDirection = centerOfPixel - u_mouse;
-  float pixelDistanceToMouse = length(pixelToMouseDirection);
-  float strength = smoothstep(0.4, 0.0, pixelDistanceToMouse);
+    vec2 mouseDirection = u_mouse - u_prevMouse;
+    vec2 pixelToMouseDirection = centerOfPixel - u_mouse;
+    float pixelDistanceToMouse = length(pixelToMouseDirection);
+    float strength = smoothstep(0.3, 0.0, pixelDistanceToMouse);
 
-  // Enhanced wave effect
-  float wave1 = sin(vUv.y * 25.0 + u_time * 3.0) * 0.005;
-  float wave2 = sin(vUv.x * 15.0 + u_time * 2.0) * 0.003;
+    float wave = sin(vUv.y * ${settings.waveFrequency}.0 + u_time * 2.0) * ${settings.waveStrength};
 
-  vec2 uvOffset = strength * -mouseDirection * 0.3;
-  vec2 uv = vUv - uvOffset + vec2(wave1 + wave2, wave1);
+    vec2 uvOffset = strength * -mouseDirection * 0.2;
+    vec2 uv = vUv - uvOffset + vec2(wave, 0.0);
 
-  // Enhanced chromatic aberration
-  float aberrationAmount = strength * u_aberrationIntensity * 0.02;
-  
-  vec4 colorR = texture2D(u_texture, uv + vec2(aberrationAmount, 0.0));
-  vec4 colorG = texture2D(u_texture, uv);
-  vec4 colorB = texture2D(u_texture, uv - vec2(aberrationAmount, 0.0));
-  
-  // Add some color bleeding for more dramatic effect
-  vec4 colorY = texture2D(u_texture, uv + vec2(0.0, aberrationAmount * 0.5));
-  vec4 colorC = texture2D(u_texture, uv - vec2(0.0, aberrationAmount * 0.5));
+    vec4 colorR = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * 0.01, 0.0));
+    vec4 colorG = texture2D(u_texture, uv);
+    vec4 colorB = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * 0.01, 0.0));
 
-  gl_FragColor = vec4(
-    colorR.r + colorY.r * 0.3, 
-    colorG.g + colorC.g * 0.2, 
-    colorB.b + colorC.b * 0.3, 
-    1.0
-  );
-}
+    gl_FragColor = vec4(colorR.r, colorG.g, colorB.b, 1.0);
+  }
 `;
 
-// Create text canvas texture with Inter font
-function createTextTexture(text) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 2048;
-  canvas.height = 1024;
-  const ctx = canvas.getContext("2d");
+// Create texture from rendered text
+function createTextTexture(callback) {
+  const loader = new FontLoader();
+  loader.load("fonts/helvetiker_regular.typeface.json", (font) => {
+    const geometry = new TextGeometry(settings.text, {
+      font: font,
+      size: settings.fontSize,
+      depth: settings.depth,
+      curveSegments: 12,
+      bevelEnabled: false,
+    });
 
-  // Set background
-  ctx.fillStyle = settings.backgroundColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+    geometry.center();
 
-  // Setup text rendering with larger font
-  ctx.fillStyle = settings.textColor;
-  ctx.font = `900 ${settings.fontSize}px ${settings.font}, Arial Black, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
+    const textMaterial = new THREE.MeshBasicMaterial({ color: settings.color });
+    const textMesh = new THREE.Mesh(geometry, textMaterial);
 
-  // Split text into lines and render
-  const lines = text.split('\n');
-  const lineHeight = settings.fontSize * 0.9; // Tighter line spacing
-  const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+    const tempScene = new THREE.Scene();
+    tempScene.add(textMesh);
 
-  lines.forEach((line, index) => {
-    ctx.fillText(line, canvas.width / 2, startY + index * lineHeight);
+    const tempCamera = new THREE.PerspectiveCamera(45, 2, 0.1, 100);
+    tempCamera.position.z = 30;
+    const tempRenderer = new THREE.WebGLRenderer({ preserveDrawingBuffer: true });
+    tempRenderer.setSize(1024, 512);
+    tempRenderer.setClearColor(settings.backgroundColor);
+    tempRenderer.render(tempScene, tempCamera);
+
+    const canvas = tempRenderer.domElement;
+    const texture = new THREE.CanvasTexture(canvas);
+    callback(texture);
   });
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  return texture;
 }
 
-function init() {
+function init(texture) {
   scene = new THREE.Scene();
-  const width = container.offsetWidth;
-  const height = container.offsetHeight;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
 
   camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 10);
   camera.position.z = 2;
 
   uniforms = {
-    u_texture: { value: createTextTexture(settings.text) },
+    u_texture: { value: texture },
     u_mouse: { value: mouse.clone() },
     u_prevMouse: { value: prevMouse.clone() },
     u_aberrationIntensity: { value: 0.0 },
     u_time: { value: 0.0 },
   };
 
-  const geometry = new THREE.PlaneGeometry(4, 2); // Made plane bigger
+  const geometry = new THREE.PlaneGeometry(2, 1);
   const material = new THREE.ShaderMaterial({
     uniforms,
     vertexShader,
@@ -137,52 +122,47 @@ function init() {
 
   renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
   renderer.setSize(width, height);
-  container.appendChild(renderer.domElement);
+  document.body.style.margin = "0";
+  document.body.style.overflow = "hidden";
+  document.body.appendChild(renderer.domElement);
 }
 
 function animate() {
   requestAnimationFrame(animate);
-
   uniforms.u_time.value = performance.now() * 0.001;
 
-  // Smooth easing
   mouse.lerp(targetMouse, settings.ease);
   uniforms.u_mouse.value.set(mouse.x, 1.0 - mouse.y);
   uniforms.u_prevMouse.value.set(prevMouse.x, 1.0 - prevMouse.y);
-
-  // Fade out effect with slower decay for more persistent effect
-  uniforms.u_aberrationIntensity.value *= 0.98;
+  uniforms.u_aberrationIntensity.value *= 0.95;
 
   renderer.render(scene, camera);
 }
 
-container.addEventListener("mousemove", (e) => {
-  const rect = container.getBoundingClientRect();
+window.addEventListener("mousemove", (e) => {
+  const x = e.clientX / window.innerWidth;
+  const y = e.clientY / window.innerHeight;
   prevMouse.copy(targetMouse);
-  targetMouse.x = (e.clientX - rect.left) / rect.width;
-  targetMouse.y = (e.clientY - rect.top) / rect.height;
+  targetMouse.set(x, y);
   uniforms.u_aberrationIntensity.value = settings.aberration;
 });
 
-container.addEventListener("mouseenter", (e) => {
-  const rect = container.getBoundingClientRect();
-  const x = (e.clientX - rect.left) / rect.width;
-  const y = (e.clientY - rect.top) / rect.height;
+window.addEventListener("mouseenter", (e) => {
+  const x = e.clientX / window.innerWidth;
+  const y = e.clientY / window.innerHeight;
   mouse.set(x, y);
   targetMouse.set(x, y);
 });
 
-container.addEventListener("mouseleave", () => {
-  prevMouse.copy(targetMouse);
-});
-
 window.addEventListener("resize", () => {
-  const width = container.offsetWidth;
-  const height = container.offsetHeight;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   renderer.setSize(width, height);
 });
 
-init();
-animate();
+createTextTexture((texture) => {
+  init(texture);
+  animate();
+});
