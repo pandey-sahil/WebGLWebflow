@@ -32,8 +32,10 @@ const fragmentShader = `
   }
 `;
 
-// ✅ Canvas & Scene Setup
 window.addEventListener("DOMContentLoaded", () => {
+  console.clear();
+  console.log("🌐 DOM fully loaded");
+
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(
     45,
@@ -47,7 +49,11 @@ window.addEventListener("DOMContentLoaded", () => {
   if (!canvas) {
     canvas = document.createElement("canvas");
     canvas.id = "canvas";
-    document.getElementById("imageContainer").appendChild(canvas);
+    const container = document.getElementById("imageContainer") || document.body;
+    container.appendChild(canvas);
+    console.log("🆕 Canvas created and appended to container.");
+  } else {
+    console.log("✅ Canvas already exists.");
   }
 
   const renderer = new THREE.WebGLRenderer({
@@ -62,6 +68,8 @@ window.addEventListener("DOMContentLoaded", () => {
   const mouse = new THREE.Vector2();
 
   const images = document.querySelectorAll("img[webgl-grid-anime]");
+  console.log(`🖼 Found ${images.length} target image(s)`);
+
   const tintColors = [
     new THREE.Color(0.95, 0.75, 0.75),
     new THREE.Color(0.85, 0.9, 1.0),
@@ -76,7 +84,12 @@ window.addEventListener("DOMContentLoaded", () => {
     const rect = img.getBoundingClientRect();
     const scrollY = window.scrollY;
 
-    const texture = new THREE.TextureLoader().load(img.src);
+    console.log(`📐 Image ${index} bounds:`, rect);
+
+    const texture = new THREE.TextureLoader().load(img.src, () => {
+      console.log(`🎨 Texture ${index} loaded`);
+    });
+
     const material = new THREE.ShaderMaterial({
       uniforms: {
         uTexture: { value: texture },
@@ -100,6 +113,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     scene.add(plane);
     planes.push(plane);
+    console.log(`🧱 Plane ${index} created and added to scene`);
   });
 
   // 🌀 Update position on scroll/resize
@@ -129,10 +143,13 @@ window.addEventListener("DOMContentLoaded", () => {
       const hit = intersects[0].object;
       const uv = intersects[0].uv;
 
+      console.log("🎯 Hover detected", { uv });
+
       hit.material.uniforms.uMouse.value.copy(uv);
       hit.material.uniforms.uHover.value = 1;
       hoveredPlane = hit;
     } else if (hoveredPlane) {
+      console.log("🚫 Hover ended");
       hoveredPlane.material.uniforms.uHover.value = 0;
       hoveredPlane = null;
     }
@@ -148,9 +165,12 @@ window.addEventListener("DOMContentLoaded", () => {
   animate();
 
   window.addEventListener("resize", () => {
+    console.log("📐 Window resized");
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     updatePlanePositions();
   });
+
+  console.log("✅ WebGL hover effect initialized");
 });
