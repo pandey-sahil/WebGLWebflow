@@ -76,8 +76,18 @@ window.addEventListener('resize', () => {
 
 function animate() {
   requestAnimationFrame(animate);
+
+  // 🔁 Rotate tunnel
   if (params.rotation) tunnelLines.rotation.z += 0.002;
+
+  // 🔄 Sync GUI with camera position
+  params.cameraX = camera.position.x;
+  params.cameraY = camera.position.y;
+  params.cameraZ = camera.position.z;
+  gui.controllers.forEach(c => c.updateDisplay());
+
   controls.update();
   renderer.render(scene, camera);
 }
+
 animate();
