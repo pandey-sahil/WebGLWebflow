@@ -2,20 +2,33 @@ import * as THREE from 'three';
 
 window.addEventListener('load', () => {
   const image = document.querySelector('img[webgl-grid-anime]');
-  const wrapper = document.querySelector('.webgl-wrapper');
-  const textureLoader = new THREE.TextureLoader();
+  const wrapper = image.closest('.webgl-wrapper');
 
+  const textureLoader = new THREE.TextureLoader();
   textureLoader.load(image.src, (texture) => {
     const imgRatio = image.naturalWidth / image.naturalHeight;
+
+    // Setup scene
     const scene = new THREE.Scene();
 
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+    // Maintain aspect ratio in orthographic camera
+    const scale = 1;
+    const camera = new THREE.OrthographicCamera(
+      -imgRatio * scale,
+      imgRatio * scale,
+      scale,
+      -scale,
+      0.1,
+      10
+    );
     camera.position.z = 1;
 
+    // Renderer
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     wrapper.appendChild(renderer.domElement);
 
+    // Shader uniforms
     const uniforms = {
       u_texture: { value: texture },
       u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
@@ -62,6 +75,7 @@ window.addEventListener('load', () => {
       }
     `;
 
+    // Create plane mesh with proper aspect
     const geometry = new THREE.PlaneGeometry(2 * imgRatio, 2);
     const material = new THREE.ShaderMaterial({
       uniforms,
@@ -72,6 +86,7 @@ window.addEventListener('load', () => {
     const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
 
+    // Mouse animation vars
     let easeFactor = 0.02;
     let mouse = { x: 0.5, y: 0.5 };
     let target = { x: 0.5, y: 0.5 };
@@ -82,6 +97,8 @@ window.addEventListener('load', () => {
       const width = wrapper.offsetWidth;
       const height = width / imgRatio;
       renderer.setSize(width, height);
+      renderer.domElement.style.width = `${width}px`;
+      renderer.domElement.style.height = `${height}px`;
     }
 
     resize();
