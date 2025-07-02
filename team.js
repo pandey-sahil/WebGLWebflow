@@ -4,9 +4,9 @@ import * as THREE from "three";
 const settings = {
   text: "Team\nYou Need",
   font: "Inter",
-  fontSize: 680,
+  fontSize: 180,
   textColor: "#ffffff",
-
+  backgroundColor: "#000000",
   aberration: 2.5,
   ease: 0.08,
   gridSize: 15.0,
