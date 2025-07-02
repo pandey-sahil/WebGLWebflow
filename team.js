@@ -1,13 +1,12 @@
 import * as THREE from "three";
-import gsap from "gsap";
 
-// Settings
+
 const settings = {
   gridSize: 20.0,
   aberration: 1.0,
 };
 
-// Vertex Shader
+// Shaders
 const vertexShader = `
   varying vec2 vUv;
   void main() {
@@ -16,7 +15,6 @@ const vertexShader = `
   }
 `;
 
-// Fragment Shader
 const fragmentShader = `
   precision mediump float;
   varying vec2 vUv;
@@ -42,7 +40,6 @@ const fragmentShader = `
   }
 `;
 
-// Setup scene
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
   45,
@@ -60,7 +57,6 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 
-// Raycaster
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
@@ -68,7 +64,9 @@ let hovered = null;
 let quickHover, quickMouseX, quickMouseY;
 
 const planes = [];
-const images = document.querySelectorAll("img.webgl-grid-anime");
+
+// ✅ Select images with [webgl-grid-anime] attribute
+const images = document.querySelectorAll("img[webgl-grid-anime]");
 
 images.forEach((img) => {
   const bounds = img.getBoundingClientRect();
