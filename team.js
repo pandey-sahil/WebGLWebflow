@@ -1,4 +1,3 @@
-// team.js
 import * as THREE from "three";
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -17,9 +16,7 @@ window.addEventListener("DOMContentLoaded", () => {
     canvas.id = "webgl-canvas";
     document.getElementById("imageContainer").appendChild(canvas);
   }
-  console.log("Using canvas:", canvas);
 
-  // 3️⃣ Three.js setup
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(
     45,
@@ -39,10 +36,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
-
   let hoveredPlane = null;
 
-  // 4️⃣ Shader code
+  // Shader code
   const vertexShader = `
     varying vec2 vUv;
     void main() {
@@ -74,11 +70,11 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   `;
 
-  // 5️⃣ Create planes for each image
   const planes = [];
+
   images.forEach((img, i) => {
     const bounds = img.getBoundingClientRect();
-    console.log(`Image ${i} bounds:`, bounds);
+    const scrollY = window.scrollY || window.pageYOffset;
 
     const tex = new THREE.TextureLoader().load(img.src, () => {
       console.log(`Texture ${i} loaded`);
@@ -97,9 +93,10 @@ window.addEventListener("DOMContentLoaded", () => {
 
     const geo = new THREE.PlaneGeometry(bounds.width, bounds.height);
     const mesh = new THREE.Mesh(geo, mat);
+
     mesh.position.set(
       bounds.left - window.innerWidth / 2 + bounds.width / 2,
-      -bounds.top + window.innerHeight / 2 - bounds.height / 2,
+      -(bounds.top - scrollY) + window.innerHeight / 2 - bounds.height / 2,
       0
     );
 
@@ -107,20 +104,19 @@ window.addEventListener("DOMContentLoaded", () => {
     scene.add(mesh);
   });
 
-  // 6️⃣ Resize/position helper
   function updatePlanes() {
     planes.forEach((pl, i) => {
       const b = images[i].getBoundingClientRect();
+      const scrollY = window.scrollY || window.pageYOffset;
+
       pl.position.set(
         b.left - window.innerWidth / 2 + b.width / 2,
-        -b.top + window.innerHeight / 2 - b.height / 2,
+        -(b.top - scrollY) + window.innerHeight / 2 - b.height / 2,
         0
       );
-      pl.scale.set(1, 1, 1);
     });
   }
 
-  // 7️⃣ Render loop
   function animate() {
     requestAnimationFrame(animate);
     updatePlanes();
@@ -128,20 +124,16 @@ window.addEventListener("DOMContentLoaded", () => {
   }
   animate();
 
-  // 8️⃣ Mouse hover logic
   window.addEventListener("mousemove", (e) => {
     mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObjects(planes);
-    console.log("Mousemove intersects:", intersects.length);
 
     if (intersects.length > 0) {
       const hit = intersects[0].object;
       const uv = intersects[0].uv;
-
-      console.log("Hovering over plane", uv);
 
       hit.material.uniforms.u_mouse.value.copy(uv);
       hit.material.uniforms.u_aberrationIntensity.value = 1.0;
@@ -152,7 +144,6 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // 9️⃣ Handle resize
   window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
