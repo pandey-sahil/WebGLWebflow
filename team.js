@@ -1,12 +1,42 @@
 import * as THREE from "three";
 
-
+// ✅ Settings
 const settings = {
   gridSize: 20.0,
   aberration: 1.0,
 };
 
-// Shaders
+// ✅ Select only images with the [webgl-grid-anime] attribute
+const images = document.querySelectorAll("img[webgl-grid-anime]");
+if (images.length === 0) {
+  console.warn("No images found with [webgl-grid-anime] attribute");
+}
+
+// ✅ Ensure canvas exists or create one
+let canvas = document.querySelector("canvas");
+if (!canvas) {
+  canvas = document.createElement("canvas");
+  document.getElementById("imageContainer").appendChild(canvas);
+}
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(
+  45,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+camera.position.z = 20;
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  alpha: true,
+  antialias: true,
+});
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+// 👇 Vertex Shader
 const vertexShader = `
   varying vec2 vUv;
   void main() {
@@ -15,6 +45,7 @@ const vertexShader = `
   }
 `;
 
+// 👇 Fragment Shader
 const fragmentShader = `
   precision mediump float;
   varying vec2 vUv;
@@ -30,8 +61,8 @@ const fragmentShader = `
     vec2 distortion = vec2(0.05) * strength;
 
     vec2 uv = vUv + distortion;
-
     vec4 tex = texture2D(u_texture, uv);
+
     vec4 r = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * 0.005, 0.0));
     vec4 g = texture2D(u_texture, uv);
     vec4 b = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * 0.005, 0.0));
@@ -40,33 +71,11 @@ const fragmentShader = `
   }
 `;
 
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(
-  45,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-camera.position.z = 20;
-
-const renderer = new THREE.WebGLRenderer({
-  canvas: document.querySelector("canvas"),
-  alpha: true,
-  antialias: true,
-});
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(window.innerWidth, window.innerHeight);
-
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-
-let hovered = null;
-let quickHover, quickMouseX, quickMouseY;
+let hoveredPlane = null;
 
 const planes = [];
-
-// ✅ Select images with [webgl-grid-anime] attribute
-const images = document.querySelectorAll("img[webgl-grid-anime]");
 
 images.forEach((img) => {
   const bounds = img.getBoundingClientRect();
@@ -85,6 +94,7 @@ images.forEach((img) => {
 
   const geometry = new THREE.PlaneGeometry(bounds.width, bounds.height);
   const mesh = new THREE.Mesh(geometry, material);
+
   mesh.position.set(
     bounds.left - window.innerWidth / 2 + bounds.width / 2,
     -bounds.top + window.innerHeight / 2 - bounds.height / 2,
@@ -95,12 +105,12 @@ images.forEach((img) => {
   scene.add(mesh);
 });
 
-function updatePlanePositions() {
+function updatePositions() {
   planes.forEach((plane, i) => {
-    const bounds = images[i].getBoundingClientRect();
+    const b = images[i].getBoundingClientRect();
     plane.position.set(
-      bounds.left - window.innerWidth / 2 + bounds.width / 2,
-      -bounds.top + window.innerHeight / 2 - bounds.height / 2,
+      b.left - window.innerWidth / 2 + b.width / 2,
+      -b.top + window.innerHeight / 2 - b.height / 2,
       0
     );
   });
@@ -108,7 +118,7 @@ function updatePlanePositions() {
 
 function animate() {
   requestAnimationFrame(animate);
-  updatePlanePositions();
+  updatePositions();
   renderer.render(scene, camera);
 }
 
@@ -125,28 +135,12 @@ window.addEventListener("mousemove", (e) => {
     const hit = intersects[0].object;
     const uv = intersects[0].uv;
 
-    if (hovered !== hit) {
-      if (hovered) {
-        hovered.material.uniforms.u_aberrationIntensity.value = 0;
-      }
-      hovered = hit;
-
-      quickMouseX = gsap.quickTo(hit.material.uniforms.u_mouse.value, "x", {
-        duration: 0.3,
-        ease: "power2.out",
-      });
-      quickMouseY = gsap.quickTo(hit.material.uniforms.u_mouse.value, "y", {
-        duration: 0.3,
-        ease: "power2.out",
-      });
-    }
-
-    quickMouseX(uv.x);
-    quickMouseY(uv.y);
-    hovered.material.uniforms.u_aberrationIntensity.value = settings.aberration;
-  } else if (hovered) {
-    hovered.material.uniforms.u_aberrationIntensity.value = 0;
-    hovered = null;
+    hit.material.uniforms.u_mouse.value.copy(uv);
+    hit.material.uniforms.u_aberrationIntensity.value = settings.aberration;
+    hoveredPlane = hit;
+  } else if (hoveredPlane) {
+    hoveredPlane.material.uniforms.u_aberrationIntensity.value = 0;
+    hoveredPlane = null;
   }
 });
 
@@ -154,5 +148,5 @@ window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  updatePlanePositions();
+  updatePositions();
 });
