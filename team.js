@@ -4,14 +4,19 @@ window.addEventListener('load', () => {
   const image = document.querySelector('img[webgl-grid-anime]');
   const wrapper = image.closest('.webgl-wrapper');
 
+  // 🔧 SETTINGS
+  const settings = {
+    gridSize: 20.0,
+    aberrationStrength: 0.01,
+    distortionAmount: 0.2,
+    easeFactor: 0.02,
+  };
+
   const textureLoader = new THREE.TextureLoader();
   textureLoader.load(image.src, (texture) => {
     const imgRatio = image.naturalWidth / image.naturalHeight;
 
-    // Setup scene
     const scene = new THREE.Scene();
-
-    // Maintain aspect ratio in orthographic camera
     const scale = 1;
     const camera = new THREE.OrthographicCamera(
       -imgRatio * scale,
@@ -23,18 +28,19 @@ window.addEventListener('load', () => {
     );
     camera.position.z = 1;
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     wrapper.appendChild(renderer.domElement);
 
-    // Shader uniforms
     const uniforms = {
       u_texture: { value: texture },
       u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
       u_prevMouse: { value: new THREE.Vector2(0.5, 0.5) },
       u_aberrationIntensity: { value: 0 },
       u_time: { value: 0 },
+      u_gridSize: { value: settings.gridSize },
+      u_aberrationStrength: { value: settings.aberrationStrength },
+      u_distortionAmount: { value: settings.distortionAmount },
     };
 
     const vertexShader = `
@@ -51,31 +57,30 @@ window.addEventListener('load', () => {
       uniform vec2 u_mouse;
       uniform vec2 u_prevMouse;
       uniform float u_aberrationIntensity;
-      uniform float u_time;
+      uniform float u_gridSize;
+      uniform float u_aberrationStrength;
+      uniform float u_distortionAmount;
 
       void main() {
-        vec2 gridUV = floor(vUv * vec2(20.0)) / vec2(20.0);
-        vec2 centerOfPixel = gridUV + vec2(1.0/20.0, 1.0/20.0);
+        vec2 gridUV = floor(vUv * vec2(u_gridSize)) / vec2(u_gridSize);
+        vec2 centerOfPixel = gridUV + vec2(1.0 / u_gridSize, 1.0 / u_gridSize);
 
         vec2 mouseDirection = u_mouse - u_prevMouse;
         vec2 pixelToMouseDirection = centerOfPixel - u_mouse;
         float pixelDistanceToMouse = length(pixelToMouseDirection);
         float strength = smoothstep(0.3, 0.0, pixelDistanceToMouse);
 
-        float wave = sin(vUv.y * 30.0 + u_time * 2.0) * 0.003;
+        vec2 uvOffset = strength * -mouseDirection * u_distortionAmount;
+        vec2 uv = vUv - uvOffset;
 
-        vec2 uvOffset = strength * -mouseDirection * 0.2;
-        vec2 uv = vUv - uvOffset + vec2(wave, 0.0);
-
-        vec4 colorR = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * 0.01, 0.0));
+        vec4 colorR = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * u_aberrationStrength, 0.0));
         vec4 colorG = texture2D(u_texture, uv);
-        vec4 colorB = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * 0.01, 0.0));
+        vec4 colorB = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * u_aberrationStrength, 0.0));
 
         gl_FragColor = vec4(colorR.r, colorG.g, colorB.b, 1.0);
       }
     `;
 
-    // Create plane mesh with proper aspect
     const geometry = new THREE.PlaneGeometry(2 * imgRatio, 2);
     const material = new THREE.ShaderMaterial({
       uniforms,
@@ -86,8 +91,7 @@ window.addEventListener('load', () => {
     const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
 
-    // Mouse animation vars
-    let easeFactor = 0.02;
+    let easeFactor = settings.easeFactor;
     let mouse = { x: 0.5, y: 0.5 };
     let target = { x: 0.5, y: 0.5 };
     let prev = { x: 0.5, y: 0.5 };
