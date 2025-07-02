@@ -50,7 +50,7 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.z = 20;
 
 const renderer = new THREE.WebGLRenderer({
-  canvas: document.getElementById("canvas"),
+  canvas: document.querySelector("canvas"),
   alpha: true,
   antialias: true,
 });
