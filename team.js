@@ -1,8 +1,6 @@
 import * as THREE from "three";
 import { FontLoader } from "three/addons/loaders/FontLoader.js";
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
->
-  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js';
 
   // ✅ SETTINGS
   const settings = {
