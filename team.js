@@ -28,7 +28,7 @@ const fragmentShader = `
     vec3 fakeColor = grayTex.rgb * uColor;
     vec3 finalColor = mix(grayTex.rgb, fakeColor, uHover);
 
-    gl_FragColor = vec4(finalColor, grayTex.a);
+    gl_FragColor = vec4(finalColor, grayTex.a); // 🟡 supports blend-mode: difference
   }
 `;
 
@@ -67,110 +67,115 @@ window.addEventListener("DOMContentLoaded", () => {
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
 
-  const images = document.querySelectorAll("img[webgl-grid-anime]");
-  console.log(`🖼 Found ${images.length} target image(s)`);
+  // Wait for layout to settle (Webflow often reflows late)
+  requestAnimationFrame(() => {
+    const images = document.querySelectorAll("img[webgl-grid-anime]");
+    console.log(`🖼 Found ${images.length} target image(s)`);
 
-  const tintColors = [
-    new THREE.Color(0.95, 0.75, 0.75),
-    new THREE.Color(0.85, 0.9, 1.0),
-    new THREE.Color(0.8, 0.85, 1.0),
-    new THREE.Color(1.0, 0.95, 0.8),
-    new THREE.Color(0.9, 0.8, 1.0),
-  ];
+    const tintColors = [
+      new THREE.Color(0.95, 0.75, 0.75),
+      new THREE.Color(0.85, 0.9, 1.0),
+      new THREE.Color(0.8, 0.85, 1.0),
+      new THREE.Color(1.0, 0.95, 0.8),
+      new THREE.Color(0.9, 0.8, 1.0),
+    ];
 
-  const planes = [];
+    const planes = [];
 
-  images.forEach((img, index) => {
-    const rect = img.getBoundingClientRect();
-    const scrollY = window.scrollY;
+    images.forEach((img, index) => {
+      const rect = img.getBoundingClientRect();
+      console.log(`📐 Image ${index} bounds:`, rect);
+      const scrollY = window.scrollY;
 
-    console.log(`📐 Image ${index} bounds:`, rect);
+      const texture = new THREE.TextureLoader().load(img.src, () => {
+        console.log(`🎨 Texture ${index} loaded`);
+      });
 
-    const texture = new THREE.TextureLoader().load(img.src, () => {
-      console.log(`🎨 Texture ${index} loaded`);
-    });
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          uTexture: { value: texture },
+          uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+          uHover: { value: 0 },
+          uColor: { value: tintColors[index % tintColors.length] },
+        },
+        vertexShader,
+        fragmentShader,
+        transparent: true,
+      });
 
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        uTexture: { value: texture },
-        uMouse: { value: new THREE.Vector2(0.5, 0.5) },
-        uHover: { value: 0 },
-        uColor: { value: tintColors[index % tintColors.length] },
-      },
-      vertexShader,
-      fragmentShader,
-      transparent: true,
-    });
+      const geometry = new THREE.PlaneGeometry(rect.width, rect.height);
+      const plane = new THREE.Mesh(geometry, material);
 
-    const geometry = new THREE.PlaneGeometry(rect.width, rect.height);
-    const plane = new THREE.Mesh(geometry, material);
-
-    plane.position.set(
-      rect.left - window.innerWidth / 2 + rect.width / 2,
-      -(rect.top - scrollY) + window.innerHeight / 2 - rect.height / 2,
-      0
-    );
-
-    scene.add(plane);
-    planes.push(plane);
-    console.log(`🧱 Plane ${index} created and added to scene`);
-  });
-
-  // 🌀 Update position on scroll/resize
-  function updatePlanePositions() {
-    const scrollY = window.scrollY;
-    planes.forEach((plane, i) => {
-      const rect = images[i].getBoundingClientRect();
       plane.position.set(
         rect.left - window.innerWidth / 2 + rect.width / 2,
         -(rect.top - scrollY) + window.innerHeight / 2 - rect.height / 2,
         0
       );
+
+      // Optional: add yellow debug box
+      const helper = new THREE.BoxHelper(plane, 0xffff00);
+      scene.add(helper);
+
+      scene.add(plane);
+      planes.push(plane);
+      console.log(`🧱 Plane ${index} created and added to scene`);
     });
-  }
 
-  // 🖱 Hover State
-  let hoveredPlane = null;
-
-  window.addEventListener("mousemove", (e) => {
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(planes);
-
-    if (intersects.length > 0) {
-      const hit = intersects[0].object;
-      const uv = intersects[0].uv;
-
-      console.log("🎯 Hover detected", { uv });
-
-      hit.material.uniforms.uMouse.value.copy(uv);
-      hit.material.uniforms.uHover.value = 1;
-      hoveredPlane = hit;
-    } else if (hoveredPlane) {
-      console.log("🚫 Hover ended");
-      hoveredPlane.material.uniforms.uHover.value = 0;
-      hoveredPlane = null;
+    // 🌀 Update position on scroll/resize
+    function updatePlanePositions() {
+      const scrollY = window.scrollY;
+      planes.forEach((plane, i) => {
+        const rect = images[i].getBoundingClientRect();
+        plane.position.set(
+          rect.left - window.innerWidth / 2 + rect.width / 2,
+          -(rect.top - scrollY) + window.innerHeight / 2 - rect.height / 2,
+          0
+        );
+      });
     }
+
+    // 🖱 Hover State
+    let hoveredPlane = null;
+
+    window.addEventListener("mousemove", (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(planes);
+
+      if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        const uv = intersects[0].uv;
+
+        hit.material.uniforms.uMouse.value.copy(uv);
+        hit.material.uniforms.uHover.value = 1;
+        hoveredPlane = hit;
+        console.log("🎯 Hovered", { uv });
+      } else if (hoveredPlane) {
+        hoveredPlane.material.uniforms.uHover.value = 0;
+        hoveredPlane = null;
+        console.log("❌ Hover ended");
+      }
+    });
+
+    // 🔁 Animate loop
+    function animate() {
+      requestAnimationFrame(animate);
+      updatePlanePositions();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener("resize", () => {
+      console.log("📐 Resized");
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      updatePlanePositions();
+    });
+
+    console.log("✅ WebGL hover effect initialized");
   });
-
-  // 🔁 Animate loop
-  function animate() {
-    requestAnimationFrame(animate);
-    updatePlanePositions();
-    renderer.render(scene, camera);
-  }
-
-  animate();
-
-  window.addEventListener("resize", () => {
-    console.log("📐 Window resized");
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    updatePlanePositions();
-  });
-
-  console.log("✅ WebGL hover effect initialized");
 });
