@@ -1,4 +1,4 @@
-<script type="module">
+
 import * as THREE from 'three';
 
 const image = document.querySelector('img[webgl-grid-anime]');
@@ -124,4 +124,4 @@ textureLoader.load(image.src, (texture) => {
     target = { ...prev };
   });
 });
-</script>
+
