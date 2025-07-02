@@ -1,17 +1,28 @@
-
+<script type="module">
 import * as THREE from 'three';
 
-document.querySelectorAll('img[webgl-grid-anime]').forEach((imageElement) => {
-  const imageContainer = imageElement.parentElement;
-  imageContainer.style.position = 'relative';
+const image = document.querySelector('img[webgl-grid-anime]');
+const wrapper = document.getElementById('webgl-wrapper');
 
-  let easeFactor = 0.02;
-  let scene, camera, renderer, planeMesh;
-  let mousePosition = { x: 0.5, y: 0.5 };
-  let targetMousePosition = { x: 0.5, y: 0.5 };
-  let prevPosition = { x: 0.5, y: 0.5 };
-  let aberrationIntensity = 0.5;
-  let uniforms;
+const textureLoader = new THREE.TextureLoader();
+textureLoader.load(image.src, (texture) => {
+  const imgRatio = image.naturalWidth / image.naturalHeight;
+  const scene = new THREE.Scene();
+
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+  camera.position.z = 1;
+
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  wrapper.appendChild(renderer.domElement);
+
+  const uniforms = {
+    u_texture: { value: texture },
+    u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
+    u_prevMouse: { value: new THREE.Vector2(0.5, 0.5) },
+    u_aberrationIntensity: { value: 0 },
+    u_time: { value: 0 },
+  };
 
   const vertexShader = `
     varying vec2 vUv;
@@ -51,91 +62,66 @@ document.querySelectorAll('img[webgl-grid-anime]').forEach((imageElement) => {
     }
   `;
 
-  const loader = new THREE.TextureLoader();
-  loader.load(imageElement.src, (texture) => {
-    initScene(texture);
-    animate();
+  const geometry = new THREE.PlaneGeometry(2 * imgRatio, 2);
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader,
+    fragmentShader,
   });
 
-  function initScene(texture) {
-    scene = new THREE.Scene();
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
 
-    const width = imageContainer.offsetWidth;
-    const height = imageContainer.offsetHeight;
+  let easeFactor = 0.02;
+  let mouse = { x: 0.5, y: 0.5 };
+  let target = { x: 0.5, y: 0.5 };
+  let prev = { x: 0.5, y: 0.5 };
+  let intensity = 0;
 
-    camera = new THREE.PerspectiveCamera(80, width / height, 0.01, 10);
-    camera.position.z = 1;
-
-    uniforms = {
-      u_mouse: { value: new THREE.Vector2() },
-      u_prevMouse: { value: new THREE.Vector2() },
-      u_aberrationIntensity: { value: 0 },
-      u_texture: { value: texture },
-      u_time: { value: 0 },
-    };
-
-    const geometry = new THREE.PlaneGeometry(2, 2);
-    const material = new THREE.ShaderMaterial({
-      uniforms,
-      vertexShader,
-      fragmentShader,
-    });
-
-    planeMesh = new THREE.Mesh(geometry, material);
-    scene.add(planeMesh);
-
-    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  function resize() {
+    const width = wrapper.offsetWidth;
+    const height = width / imgRatio;
     renderer.setSize(width, height);
-    renderer.domElement.style.position = 'absolute';
-    renderer.domElement.style.top = '0';
-    renderer.domElement.style.left = '0';
-    renderer.domElement.style.pointerEvents = 'none';
-    imageContainer.appendChild(renderer.domElement);
   }
+
+  resize();
+  window.addEventListener('resize', resize);
 
   function animate() {
     requestAnimationFrame(animate);
 
+    mouse.x += (target.x - mouse.x) * easeFactor;
+    mouse.y += (target.y - mouse.y) * easeFactor;
+
     uniforms.u_time.value = performance.now() * 0.001;
-
-    mousePosition.x += (targetMousePosition.x - mousePosition.x) * easeFactor;
-    mousePosition.y += (targetMousePosition.y - mousePosition.y) * easeFactor;
-
-    uniforms.u_mouse.value.set(mousePosition.x, 1.0 - mousePosition.y);
-    uniforms.u_prevMouse.value.set(prevPosition.x, 1.0 - prevPosition.y);
-
-    aberrationIntensity = Math.max(0.0, aberrationIntensity - 0.05);
-    uniforms.u_aberrationIntensity.value = aberrationIntensity;
+    uniforms.u_mouse.value.set(mouse.x, 1.0 - mouse.y);
+    uniforms.u_prevMouse.value.set(prev.x, 1.0 - prev.y);
+    intensity = Math.max(0, intensity - 0.05);
+    uniforms.u_aberrationIntensity.value = intensity;
 
     renderer.render(scene, camera);
   }
+  animate();
 
-  imageContainer.addEventListener("mousemove", (e) => {
-    easeFactor = 0.02;
-    const rect = imageContainer.getBoundingClientRect();
-    prevPosition = { ...targetMousePosition };
-
-    targetMousePosition.x = (e.clientX - rect.left) / rect.width;
-    targetMousePosition.y = (e.clientY - rect.top) / rect.height;
-    aberrationIntensity = 1;
+  wrapper.addEventListener('mousemove', (e) => {
+    const rect = wrapper.getBoundingClientRect();
+    prev = { ...target };
+    target.x = (e.clientX - rect.left) / rect.width;
+    target.y = (e.clientY - rect.top) / rect.height;
+    intensity = 1;
   });
 
-  imageContainer.addEventListener("mouseenter", (e) => {
-    const rect = imageContainer.getBoundingClientRect();
-    targetMousePosition.x = mousePosition.x = (e.clientX - rect.left) / rect.width;
-    targetMousePosition.y = mousePosition.y = (e.clientY - rect.top) / rect.height;
+  wrapper.addEventListener('mouseenter', (e) => {
+    const rect = wrapper.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    target.x = mouse.x = x;
+    target.y = mouse.y = y;
   });
 
-  imageContainer.addEventListener("mouseleave", () => {
+  wrapper.addEventListener('mouseleave', () => {
     easeFactor = 0.05;
-    targetMousePosition = { ...prevPosition };
-  });
-
-  window.addEventListener("resize", () => {
-    const width = imageContainer.offsetWidth;
-    const height = imageContainer.offsetHeight;
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(width, height);
+    target = { ...prev };
   });
 });
+</script>
