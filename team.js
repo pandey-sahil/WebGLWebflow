@@ -36,35 +36,36 @@ const vertexShader = `
 `;
 
 const fragmentShader = `
-  precision mediump float;
+ precision mediump float;
 
-  varying vec2 vUv;
-  uniform sampler2D u_texture;
-  uniform vec2 u_mouse;
-  uniform vec2 u_prevMouse;
-  uniform float u_aberrationIntensity;
-  uniform float u_time;
+varying vec2 vUv;
+uniform sampler2D u_texture;
+uniform vec2 u_mouse;
+uniform vec2 u_prevMouse;
+uniform float u_aberrationIntensity;
+uniform float u_time;
 
-  void main() {
-    vec2 gridUV = floor(vUv * vec2(${settings.gridSize})) / vec2(${settings.gridSize});
-    vec2 centerOfPixel = gridUV + vec2(1.0 / ${settings.gridSize}, 1.0 / ${settings.gridSize});
+void main() {
+  vec2 gridUV = floor(vUv * vec2(20.0)) / vec2(20.0);
+  vec2 centerOfPixel = gridUV + vec2(1.0 / 20.0, 1.0 / 20.0);
 
-    vec2 mouseDirection = u_mouse - u_prevMouse;
-    vec2 pixelToMouseDirection = centerOfPixel - u_mouse;
-    float pixelDistanceToMouse = length(pixelToMouseDirection);
-    float strength = smoothstep(0.3, 0.0, pixelDistanceToMouse);
+  vec2 mouseDirection = u_mouse - u_prevMouse;
+  vec2 pixelToMouseDirection = centerOfPixel - u_mouse;
+  float pixelDistanceToMouse = length(pixelToMouseDirection);
+  float strength = smoothstep(0.3, 0.0, pixelDistanceToMouse);
 
-    float wave = sin(vUv.y * ${settings.waveFrequency} + u_time * 2.0) * ${settings.waveStrength};
+  float wave = sin(vUv.y * 30.0 + u_time * 2.0) * 0.003;
 
-    vec2 uvOffset = strength * -mouseDirection * 0.2;
-    vec2 uv = vUv - uvOffset + vec2(wave, 0.0);
+  vec2 uvOffset = strength * -mouseDirection * 0.2;
+  vec2 uv = vUv - uvOffset + vec2(wave, 0.0);
 
-    vec4 colorR = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * 0.01, 0.0));
-    vec4 colorG = texture2D(u_texture, uv);
-    vec4 colorB = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * 0.01, 0.0));
+  vec4 colorR = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * 0.01, 0.0));
+  vec4 colorG = texture2D(u_texture, uv);
+  vec4 colorB = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * 0.01, 0.0));
 
-    gl_FragColor = vec4(colorR.r, colorG.g, colorB.b, 1.0);
-  }
+  gl_FragColor = vec4(colorR.r, colorG.g, colorB.b, 1.0);
+}
+
 `;
 
 function createTextTexture(text) {
