@@ -2,24 +2,19 @@ import * as THREE from "three";
 
 // ✅ SETTINGS
 const settings = {
-  text: "Team You Need",
+  text: "Team\nYou Need",
   font: "Inter",
-  fontSize: 600,
+  fontSize: 680,
   textColor: "#ffffff",
-  aberration: 1.0,
-  ease: 0.05,
-  gridSize: 20.0,
-  waveFrequency: 30.0,
-  waveStrength: 0.003,
+
+  aberration: 2.5,
+  ease: 0.08,
+  gridSize: 15.0,
+  waveFrequency: 25.0,
+  waveStrength: 0.005,
 };
 
 const container = document.getElementById("imageContainer");
-container.style.width = "100vw";
-container.style.height = "100vh";
-container.style.position = "fixed";
-container.style.top = 0;
-container.style.left = 0;
-container.style.zIndex = -1; // Optional, push canvas behind other content
 
 let scene, camera, renderer, mesh;
 let uniforms;
@@ -46,53 +41,80 @@ uniform float u_aberrationIntensity;
 uniform float u_time;
 
 void main() {
-  vec2 gridUV = floor(vUv * vec2(20.0)) / vec2(20.0);  // ✅ use float literals
-  vec2 centerOfPixel = gridUV + vec2(1.0 / 20.0, 1.0 / 20.0);  // ✅ use float
+  vec2 gridUV = floor(vUv * vec2(15.0)) / vec2(15.0);
+  vec2 centerOfPixel = gridUV + vec2(1.0 / 15.0, 1.0 / 15.0);
 
   vec2 mouseDirection = u_mouse - u_prevMouse;
   vec2 pixelToMouseDirection = centerOfPixel - u_mouse;
   float pixelDistanceToMouse = length(pixelToMouseDirection);
-  float strength = smoothstep(0.3, 0.0, pixelDistanceToMouse);
+  float strength = smoothstep(0.4, 0.0, pixelDistanceToMouse);
 
-  float wave = sin(vUv.y * 30.0 + u_time * 2.0) * 0.003;  // ✅ 30.0 not 30
+  // Enhanced wave effect
+  float wave1 = sin(vUv.y * 25.0 + u_time * 3.0) * 0.005;
+  float wave2 = sin(vUv.x * 15.0 + u_time * 2.0) * 0.003;
 
-  vec2 uvOffset = strength * -mouseDirection * 0.2;
-  vec2 uv = vUv - uvOffset + vec2(wave, 0.0);
+  vec2 uvOffset = strength * -mouseDirection * 0.3;
+  vec2 uv = vUv - uvOffset + vec2(wave1 + wave2, wave1);
 
-  vec4 colorR = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * 0.01, 0.0));
+  // Enhanced chromatic aberration
+  float aberrationAmount = strength * u_aberrationIntensity * 0.02;
+  
+  vec4 colorR = texture2D(u_texture, uv + vec2(aberrationAmount, 0.0));
   vec4 colorG = texture2D(u_texture, uv);
-  vec4 colorB = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * 0.01, 0.0));
+  vec4 colorB = texture2D(u_texture, uv - vec2(aberrationAmount, 0.0));
+  
+  // Add some color bleeding for more dramatic effect
+  vec4 colorY = texture2D(u_texture, uv + vec2(0.0, aberrationAmount * 0.5));
+  vec4 colorC = texture2D(u_texture, uv - vec2(0.0, aberrationAmount * 0.5));
 
-  gl_FragColor = vec4(colorR.r, colorG.g, colorB.b, 1.0);
+  gl_FragColor = vec4(
+    colorR.r + colorY.r * 0.3, 
+    colorG.g + colorC.g * 0.2, 
+    colorB.b + colorC.b * 0.3, 
+    1.0
+  );
 }
 `;
 
+// Create text canvas texture with Inter font
 function createTextTexture(text) {
   const canvas = document.createElement("canvas");
-  canvas.width = 2048;
-  canvas.height = 1024;
+  canvas.width = 1024;
+  canvas.height = 512;
   const ctx = canvas.getContext("2d");
 
-  // No background fill — transparent
+  // Set background
+  ctx.fillStyle = settings.backgroundColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Setup text rendering
   ctx.fillStyle = settings.textColor;
-  ctx.font = `bold ${settings.fontSize}px ${settings.font}, sans-serif`;
+  ctx.font = `900 ${settings.fontSize}px ${settings.font}, Arial Black, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+  // Split text into lines and render
+  const lines = text.split('\n');
+  const lineHeight = settings.fontSize * 1.1;
+  const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+
+  lines.forEach((line, index) => {
+    ctx.fillText(line, canvas.width / 2, startY + index * lineHeight);
+  });
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
   return texture;
 }
 
 function init() {
   scene = new THREE.Scene();
-
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+  const width = container.offsetWidth;
+  const height = container.offsetHeight;
 
   camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 10);
-  camera.position.z = 1.5;
+  camera.position.z = 2;
 
   uniforms = {
     u_texture: { value: createTextTexture(settings.text) },
@@ -123,11 +145,13 @@ function animate() {
 
   uniforms.u_time.value = performance.now() * 0.001;
 
+  // Smooth easing
   mouse.lerp(targetMouse, settings.ease);
   uniforms.u_mouse.value.set(mouse.x, 1.0 - mouse.y);
   uniforms.u_prevMouse.value.set(prevMouse.x, 1.0 - prevMouse.y);
 
-  uniforms.u_aberrationIntensity.value *= 0.95;
+  // Fade out effect with slower decay for more persistent effect
+  uniforms.u_aberrationIntensity.value *= 0.98;
 
   renderer.render(scene, camera);
 }
@@ -153,8 +177,8 @@ container.addEventListener("mouseleave", () => {
 });
 
 window.addEventListener("resize", () => {
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+  const width = container.offsetWidth;
+  const height = container.offsetHeight;
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   renderer.setSize(width, height);
