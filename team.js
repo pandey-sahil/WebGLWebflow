@@ -4,7 +4,7 @@ import * as THREE from "three";
 const settings = {
   text: "Team\nYou Need",
   font: "Inter",
-  fontSize: 180,
+  fontSize: 280,
   textColor: "#ffffff",
   backgroundColor: "#000000",
   aberration: 2.5,
@@ -79,15 +79,15 @@ void main() {
 // Create text canvas texture with Inter font
 function createTextTexture(text) {
   const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 512;
+  canvas.width = 2048;
+  canvas.height = 1024;
   const ctx = canvas.getContext("2d");
 
   // Set background
   ctx.fillStyle = settings.backgroundColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Setup text rendering
+  // Setup text rendering with larger font
   ctx.fillStyle = settings.textColor;
   ctx.font = `900 ${settings.fontSize}px ${settings.font}, Arial Black, sans-serif`;
   ctx.textAlign = "center";
@@ -95,7 +95,7 @@ function createTextTexture(text) {
 
   // Split text into lines and render
   const lines = text.split('\n');
-  const lineHeight = settings.fontSize * 1.1;
+  const lineHeight = settings.fontSize * 0.9; // Tighter line spacing
   const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
 
   lines.forEach((line, index) => {
@@ -124,7 +124,7 @@ function init() {
     u_time: { value: 0.0 },
   };
 
-  const geometry = new THREE.PlaneGeometry(2, 1);
+  const geometry = new THREE.PlaneGeometry(4, 2); // Made plane bigger
   const material = new THREE.ShaderMaterial({
     uniforms,
     vertexShader,
