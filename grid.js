@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -7,11 +6,10 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Camera + Controls
+// Camera setup (static)
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 200);
-camera.position.set(0, 8, 3); // 👈 Updated camera position
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
+camera.position.set(0, 8, 3); // You can adjust this as needed
+camera.lookAt(0, 0, 0); // Point camera at the origin
 
 // Params
 const params = {
@@ -101,7 +99,6 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
   tunnelMesh.rotation.z += params.rotationSpeed;
-  controls.update();
   renderer.render(scene, camera);
 }
 animate();
