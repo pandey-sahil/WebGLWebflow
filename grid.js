@@ -1,52 +1,107 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // Scene setup
 const scene = new THREE.Scene();
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Camera setup (as per your earlier image)
-const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
-camera.position.set(0, 8, 3);
+// Camera + Controls
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(0, 8, 3); // 👈 Updated camera position
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
 
-// Grid Shader Material
-const material = new THREE.ShaderMaterial({
+// Params
+const params = {
+  radius: 10,
+  length: 60,
+  radialSegs: 32,
+  heightSegs: 40,
+  rotationSpeed: 0.002
+};
+
+let tunnelMesh;
+
+// Shader Material
+const tunnelMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    uLength: { value: params.length },
+    color: { value: new THREE.Color(0xffffff) }
+  },
   vertexShader: `
-    varying vec2 vUv;
+    uniform float uLength;
+    varying float vZ;
     void main() {
-      vUv = uv;
+      vZ = position.z;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `,
   fragmentShader: `
-    varying vec2 vUv;
+    precision mediump float;
+    uniform vec3 color;
+    uniform float uLength; 
+    varying float vZ;
     void main() {
-      float radialLine = step(0.98, fract(vUv.x * 32.0));
-      float heightLine = step(0.98, fract(vUv.y * 40.0));
-      float grid = max(radialLine, heightLine);
-      gl_FragColor = vec4(vec3(grid), 1.0);
+      float fade = 1.0 - smoothstep(-uLength/2.0 + 5.0, -uLength/2.0, vZ);
+      fade *= 1.0 - smoothstep(uLength/2.0 - 5.0, uLength/2.0, vZ);
+      gl_FragColor = vec4(color, fade);
     }
   `,
-  side: THREE.DoubleSide
+  transparent: true
 });
 
-// Cylinder Geometry (open-ended for tunnel look)
-const geometry = new THREE.CylinderGeometry(10, 10, 60, 32, 40, true);
-const tunnel = new THREE.Mesh(geometry, material);
-scene.add(tunnel);
+// Geometry Generator
+function createTunnel(radius, length, radialSegs, heightSegs) {
+  const pos = [];
+  for (let h = 0; h <= heightSegs; h++) {
+    const z = (h / heightSegs) * length - length / 2;
+    for (let i = 0; i < radialSegs; i++) {
+      const a1 = (i / radialSegs) * Math.PI * 2;
+      const a2 = ((i + 1) / radialSegs) * Math.PI * 2;
+      pos.push(
+        Math.cos(a1) * radius, Math.sin(a1) * radius, z,
+        Math.cos(a2) * radius, Math.sin(a2) * radius, z
+      );
+    }
+  }
+  for (let i = 0; i < radialSegs; i++) {
+    const angle = (i / radialSegs) * Math.PI * 2;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    for (let h = 0; h < heightSegs; h++) {
+      const z1 = (h / heightSegs) * length - length / 2;
+      const z2 = ((h + 1) / heightSegs) * length - length / 2;
+      pos.push(x, y, z1, x, y, z2);
+    }
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return new THREE.LineSegments(geom, tunnelMaterial.clone());
+}
 
-// Handle Resize
+// Create tunnel
+function updateTunnel() {
+  if (tunnelMesh) scene.remove(tunnelMesh);
+  tunnelMaterial.uniforms.uLength.value = params.length;
+  tunnelMesh = createTunnel(params.radius, params.length, params.radialSegs, params.heightSegs);
+  scene.add(tunnelMesh);
+}
+updateTunnel();
+
+// Handle resize
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(innerWidth, innerHeight);
 });
 
-// Animate
+// Animation loop
 function animate() {
   requestAnimationFrame(animate);
-  tunnel.rotation.z += 0.002; // optional rotation
+  tunnelMesh.rotation.z += params.rotationSpeed;
+  controls.update();
   renderer.render(scene, camera);
 }
 animate();
