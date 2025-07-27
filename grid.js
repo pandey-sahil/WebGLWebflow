@@ -1,95 +1,70 @@
 import * as THREE from 'three';
 
-// Scene setup
+// SCENE, CAMERA, RENDERER
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x111111);
-
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// Static camera setup
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(0, 0, 10);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 2, 8);
 camera.lookAt(0, 0, 0);
 
-// Grid parameters
-const gridWidth = 20;
-const gridHeight = 20;
-const spacingX = 2 / gridWidth;
-const spacingY = 2 / gridHeight;
+const renderer = new THREE.WebGLRenderer({ antialias: true, canvas: document.querySelector('canvas') });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000);
 
-// Shader material with fade
-const tunnelMaterial = new THREE.ShaderMaterial({
-  uniforms: {
-    color: { value: new THREE.Color(0xffffff) }
-  },
-  vertexShader: `
-    varying float vZ;
-    void main() {
-      vZ = position.z;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    precision mediump float;
-    uniform vec3 color;
-    varying float vZ;
-    void main() {
-      float fade = 1.0 - smoothstep(-5.0, 5.0, abs(vZ));
-      gl_FragColor = vec4(color, fade);
-    }
-  `,
-  transparent: true
-});
+// WARPED GRID CREATION
+const gridWidth = 8;
+const gridHeight = 4;
+const columns = 40;
+const rows = 20;
+const gridGeometry = new THREE.BufferGeometry();
+const positions = [];
 
-// Create warped grid lines
-function createCurvedGrid() {
-  const pos = [];
-
-  // Horizontal curves
-  for (let j = -gridHeight; j <= gridHeight; j++) {
-    for (let i = -gridWidth; i < gridWidth; i++) {
-      const x1 = i * spacingX;
-      const x2 = (i + 1) * spacingX;
-      const y = j * spacingY;
-      const z = -Math.pow(y, 2) * 0.2;
-
-      pos.push(x1, y, z, x2, y, z);
-    }
-  }
-
-  // Vertical curves
-  for (let i = -gridWidth; i <= gridWidth; i++) {
-    for (let j = -gridHeight; j < gridHeight; j++) {
-      const x = i * spacingX;
-      const y1 = j * spacingY;
-      const y2 = (j + 1) * spacingY;
-      const z = -Math.pow(x, 2) * 0.2;
-
-      pos.push(x, y1, z, x, y2, z);
-    }
-  }
-
-  const geom = new THREE.BufferGeometry();
-  geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  return new THREE.LineSegments(geom, tunnelMaterial.clone());
+function bowlWarp(x, y) {
+  // Make the grid curve downward (bowl)
+  const curvature = 0.15;
+  const z = -Math.pow(y, 2) * curvature;
+  return [x, y, z];
 }
 
-// Add to scene
-const grid = createCurvedGrid();
+// Vertical lines
+for (let i = 0; i <= columns; i++) {
+  const x = -gridWidth / 2 + (i / columns) * gridWidth;
+  for (let j = 0; j < rows; j++) {
+    const y1 = -gridHeight / 2 + (j / rows) * gridHeight;
+    const y2 = -gridHeight / 2 + ((j + 1) / rows) * gridHeight;
+    positions.push(...bowlWarp(x, y1), ...bowlWarp(x, y2));
+  }
+}
+// Horizontal lines
+for (let j = 0; j <= rows; j++) {
+  const y = -gridHeight / 2 + (j / rows) * gridHeight;
+  for (let i = 0; i < columns; i++) {
+    const x1 = -gridWidth / 2 + (i / columns) * gridWidth;
+    const x2 = -gridWidth / 2 + ((i + 1) / columns) * gridWidth;
+    positions.push(...bowlWarp(x1, y), ...bowlWarp(x2, y));
+  }
+}
+
+gridGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+const gridMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.8, transparent: true });
+const grid = new THREE.LineSegments(gridGeometry, gridMaterial);
 scene.add(grid);
 
-// Handle resize
-window.addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+// ANIMATION LOOP
+let offset = 0;
+const speed = 0.04;
+const resetDistance = gridWidth / 2;
 
-// Animate
 function animate() {
   requestAnimationFrame(animate);
+  offset += speed;
+  grid.position.x = -((offset) % (gridWidth / columns));
   renderer.render(scene, camera);
 }
 animate();
+
+// RESPONSIVENESS
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
