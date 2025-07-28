@@ -2,7 +2,7 @@
   import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js';
   
   // Get canvas
-const canvas = document.querySelector('.tunnelCanvas');
+const canvas = document.querySelector('.tunnelcanvas');
 
   // Renderer using existing canvas
   const renderer = new THREE.WebGLRenderer({
