@@ -1,6 +1,4 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import GUI from 'lil-gui';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -8,11 +6,11 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Camera + Controls
+// Camera
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 200);
 camera.position.set(0, 8, 3);
 
-// Params
+// Parameters
 const params = {
   radius: 10,
   length: 60,
@@ -54,7 +52,7 @@ const tunnelMaterial = new THREE.ShaderMaterial({
   transparent: true
 });
 
-// Geometry Generator
+// Create Tunnel Geometry
 function createTunnel(radius, length, radialSegs, heightSegs) {
   const pos = [];
   for (let h = 0; h <= heightSegs; h++) {
@@ -83,32 +81,42 @@ function createTunnel(radius, length, radialSegs, heightSegs) {
   return new THREE.LineSegments(geom, tunnelMaterial.clone());
 }
 
-// Initial tunnel
+// Update tunnel
 function updateTunnel() {
-  if (tunnelMesh) scene.remove(tunnelMesh);
+  if (tunnelMesh) {
+    tunnelMesh.material.dispose();
+    tunnelMesh.geometry.dispose();
+    scene.remove(tunnelMesh);
+  }
   tunnelMaterial.uniforms.uLength.value = params.length;
   tunnelMesh = createTunnel(params.radius, params.length, params.radialSegs, params.heightSegs);
   scene.add(tunnelMesh);
 }
 updateTunnel();
 
-
-// Resize
+// Resize handler
 window.addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
 
-// Animate
-function animate() {
+// Animation loop
+let lastLog = 0;
+function animate(time) {
   requestAnimationFrame(animate);
   tunnelMesh.rotation.z += params.rotationSpeed;
 
-  // Sync GUI with camera
+  // Optional: Sync params
   params.cameraX = camera.position.x;
   params.cameraY = camera.position.y;
   params.cameraZ = camera.position.z;
+
+  // Log camera position every 1 second
+  if (time - lastLog > 1000) {
+    console.log(`Camera Position: x=${camera.position.x.toFixed(2)}, y=${camera.position.y.toFixed(2)}, z=${camera.position.z.toFixed(2)}`);
+    lastLog = time;
+  }
 
   renderer.render(scene, camera);
 }
