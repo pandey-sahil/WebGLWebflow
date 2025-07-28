@@ -1,15 +1,21 @@
 
   import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js';
-  // Renderer
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
+  
+  // Get canvas
+const canvas = document.querySelector('.tunnelCanvas');
+
+  // Renderer using existing canvas
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true
+  });
 
   // Scene
   const scene = new THREE.Scene();
 
-  // Camera setup
-  const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
+  // Camera
+  const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
   const cameraState = {
     position: { x: 0, y: 8, z: 4 },
     target: { x: 0, y: 0, z: 0 }
@@ -54,11 +60,9 @@
     transparent: true
   });
 
-  // Generate tunnel geometry
+  // Tunnel geometry
   function createTunnelGeometry(radius, length, radialSegs, heightSegs) {
     const positions = [];
-
-    // Radial segments (circle rings along the tunnel)
     for (let h = 0; h <= heightSegs; h++) {
       const z = (h / heightSegs) * length - length / 2;
       for (let i = 0; i < radialSegs; i++) {
@@ -71,7 +75,6 @@
       }
     }
 
-    // Longitudinal lines
     for (let i = 0; i < radialSegs; i++) {
       const angle = (i / radialSegs) * Math.PI * 2;
       const x = Math.cos(angle) * radius;
@@ -89,20 +92,27 @@
   }
 
   // Create tunnel mesh
-  const tunnelGeometry = createTunnelGeometry(params.radius, params.length, params.radialSegs, params.heightSegs);
-  const tunnelMesh = new THREE.LineSegments(tunnelGeometry, tunnelMaterial);
+  const tunnelMesh = new THREE.LineSegments(createTunnelGeometry(
+    params.radius, params.length, params.radialSegs, params.heightSegs
+  ), tunnelMaterial);
   scene.add(tunnelMesh);
 
-  // Handle resize
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
+  // Resize renderer and camera
+  function resizeRendererToCanvas() {
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    if (canvas.width !== width || canvas.height !== height) {
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+  }
 
   // Animation loop
   function animate() {
     requestAnimationFrame(animate);
+    resizeRendererToCanvas();
     tunnelMesh.rotation.z += params.rotationSpeed;
     renderer.render(scene, camera);
   }
