@@ -8,7 +8,7 @@ document.body.appendChild(renderer.domElement);
 
 // Camera
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 200);
-camera.position.set(0, 0, 0); // 45-degree angle in X, Y, and Z
+camera.position.set(0, -5, 0); // 45-degree angle in X, Y, and Z
 camera.lookAt(0, -10, 4);          // Look at center of the scene
 
 
