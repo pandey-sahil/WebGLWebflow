@@ -104,7 +104,6 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
   tunnelMesh.rotation.z += params.rotationSpeed;
-  controls.update();
 
   // Sync GUI with camera
   params.cameraX = camera.position.x;
