@@ -1,73 +1,107 @@
 import * as THREE from 'three';
 
-// Helper to obtain or create a canvas
-function getOrCreateCanvas() {
-  let canvas = document.querySelector('canvas');
-  if (!canvas) {
-    canvas = document.createElement('canvas');
-    document.body.appendChild(canvas);
-  }
-  return canvas;
-}
-
-const canvas = getOrCreateCanvas();
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-
+// Scene setup
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 5, 10);
-camera.lookAt(0, 0, 0);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
 
-// Resize handling
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+// Camera setup
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(0, 8, 3);
 
-const geometry = new THREE.PlaneGeometry(20, 40, 200, 400);
-const material = new THREE.ShaderMaterial({
+// Params
+const params = {
+  radius: 10,
+  length: 60,
+  radialSegs: 32,
+  heightSegs: 40,
+  rotationSpeed: 0.002,
+  cameraX: 0,
+  cameraY: 8,
+  cameraZ: 3
+};
+
+let tunnelMesh;
+
+// Shader Material
+const tunnelMaterial = new THREE.ShaderMaterial({
   uniforms: {
-    time: { value: 0 },
-    gridScale: { value: 10.0 },
-    warpAmplitude: { value: 2.0 }
+    uLength: { value: params.length },
+    color: { value: new THREE.Color(0xffffff) }
   },
   vertexShader: `
-    uniform float time;
-    uniform float warpAmplitude;
-    varying vec3 vPos;
+    uniform float uLength;
+    varying float vZ;
     void main() {
-      vPos = position;
-      vec3 warped = position;
-      warped.y += sin(warped.z * 0.1) * warpAmplitude;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(warped, 1.0);
+      vZ = position.z;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `,
   fragmentShader: `
-    varying vec3 vPos;
-    uniform float gridScale;
-    float gridLine(vec2 uv) {
-      vec2 grid = abs(fract(uv * gridScale - 0.5) - 0.5) / fwidth(uv * gridScale);
-      return 1.0 - min(min(grid.x, grid.y), 1.0);
-    }
+    precision mediump float;
+    uniform vec3 color;
+    uniform float uLength; 
+    varying float vZ;
     void main() {
-      float lines = gridLine(vPos.xz);
-      vec3 gridColor = mix(vec3(0.02), vec3(0.4), lines);
-      gl_FragColor = vec4(gridColor, 1.0);
+      float fade = 1.0 - smoothstep(-uLength/2.0 + 5.0, -uLength/2.0, vZ);
+      fade *= 1.0 - smoothstep(uLength/2.0 - 5.0, uLength/2.0, vZ);
+      gl_FragColor = vec4(color, fade);
     }
   `,
-  side: THREE.DoubleSide
+  transparent: true
 });
 
-const mesh = new THREE.Mesh(geometry, material);
-mesh.rotation.x = -Math.PI / 2;
-scene.add(mesh);
+// Geometry Generator
+function createTunnel(radius, length, radialSegs, heightSegs) {
+  const pos = [];
+  for (let h = 0; h <= heightSegs; h++) {
+    const z = (h / heightSegs) * length - length / 2;
+    for (let i = 0; i < radialSegs; i++) {
+      const a1 = (i / radialSegs) * Math.PI * 2;
+      const a2 = ((i + 1) / radialSegs) * Math.PI * 2;
+      pos.push(
+        Math.cos(a1) * radius, Math.sin(a1) * radius, z,
+        Math.cos(a2) * radius, Math.sin(a2) * radius, z
+      );
+    }
+  }
+  for (let i = 0; i < radialSegs; i++) {
+    const angle = (i / radialSegs) * Math.PI * 2;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    for (let h = 0; h < heightSegs; h++) {
+      const z1 = (h / heightSegs) * length - length / 2;
+      const z2 = ((h + 1) / heightSegs) * length - length / 2;
+      pos.push(x, y, z1, x, y, z2);
+    }
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return new THREE.LineSegments(geom, tunnelMaterial.clone());
+}
+
+// Initial tunnel
+function updateTunnel() {
+  if (tunnelMesh) scene.remove(tunnelMesh);
+  tunnelMaterial.uniforms.uLength.value = params.length;
+  tunnelMesh = createTunnel(params.radius, params.length, params.radialSegs, params.heightSegs);
+  scene.add(tunnelMesh);
+}
+updateTunnel();
+
+// Resize
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
 
 // Animate
-function animate(time) {
-  material.uniforms.time.value = time * 0.001;
-  renderer.render(scene, camera);
+function animate() {
   requestAnimationFrame(animate);
+  tunnelMesh.rotation.z += params.rotationSpeed;
+  camera.position.set(params.cameraX, params.cameraY, params.cameraZ);
+  renderer.render(scene, camera);
 }
-requestAnimationFrame(animate);
+animate();
