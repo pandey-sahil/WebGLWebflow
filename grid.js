@@ -11,8 +11,6 @@ document.body.appendChild(renderer.domElement);
 // Camera + Controls
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 200);
 camera.position.set(0, 8, 3);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
 
 // Params
 const params = {
@@ -94,14 +92,6 @@ function updateTunnel() {
 }
 updateTunnel();
 
-// GUI
-const gui = new GUI();
-gui.add(params, 'radius', 1, 50).onChange(updateTunnel);
-gui.add(params, 'length', 10, 100).onChange(updateTunnel);
-gui.add(params, 'rotationSpeed', 0, 0.02);
-gui.add(params, 'cameraX', -50, 50).onChange(v => camera.position.x = v);
-gui.add(params, 'cameraY', -50, 50).onChange(v => camera.position.y = v);
-gui.add(params, 'cameraZ', -50, 50).onChange(v => camera.position.z = v);
 
 // Resize
 window.addEventListener('resize', () => {
@@ -120,7 +110,6 @@ function animate() {
   params.cameraX = camera.position.x;
   params.cameraY = camera.position.y;
   params.cameraZ = camera.position.z;
-  gui.controllers.forEach(c => c.updateDisplay());
 
   renderer.render(scene, camera);
 }
