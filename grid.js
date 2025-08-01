@@ -124,14 +124,38 @@ function animate() {
   });
 
   const ray = raycaster.ray;
+const mouseScreen = new THREE.Vector2();
+mouseScreen.x = (mouse.x * 0.5 + 0.5) * canvas.width;
+mouseScreen.y = (-(mouse.y * 0.5 - 0.5)) * canvas.height;
 
-  tunnelLines.forEach(({ line, p1, p2 }) => {
-    const dist = getClosestDistance(ray, p1, p2);
-    if (dist < params.hoverDistance) {
-      line.material.color.set(hoverColor);
-      line.material.opacity = 1.0;
-    }
-  });
+tunnelLines.forEach(({ line, p1, p2 }) => {
+  const p1Projected = p1.clone().project(camera);
+  const p2Projected = p2.clone().project(camera);
+
+  const x1 = (p1Projected.x * 0.5 + 0.5) * canvas.width;
+  const y1 = (-(p1Projected.y * 0.5 - 0.5)) * canvas.height;
+  const x2 = (p2Projected.x * 0.5 + 0.5) * canvas.width;
+  const y2 = (-(p2Projected.y * 0.5 - 0.5)) * canvas.height;
+
+  const dist = pointToSegmentDistance(mouseScreen.x, mouseScreen.y, x1, y1, x2, y2);
+  if (dist < 20) { // 20px threshold
+    line.material.color.set(hoverColor);
+    line.material.opacity = 1.0;
+  }
+});
+function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(px - x1, py - y1);
+  }
+  const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
+  const clampedT = Math.max(0, Math.min(1, t));
+  const closestX = x1 + clampedT * dx;
+  const closestY = y1 + clampedT * dy;
+  return Math.hypot(px - closestX, py - closestY);
+}
+
 
   // Rotate entire tunnel
   tunnelLines.forEach(({ line }) => {
