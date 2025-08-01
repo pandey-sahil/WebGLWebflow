@@ -4,7 +4,9 @@ const canvas = document.querySelector('.tunnelcanvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
-camera.position.set(0, 10, 10);
+
+// ✅ Restored original camera position and look
+camera.position.set(0, 8, 4);
 camera.lookAt(0, 0, 0);
 
 const raycaster = new THREE.Raycaster();
@@ -24,7 +26,7 @@ scene.add(tunnelGroup);
 
 const baseColor = 0xffffff;
 const tunnelLines = [];
-const gridPoints = []; // 2D array [radial][depth]
+const gridPoints = []; // 2D array [height][radial]
 
 // 1. BUILD TUNNEL GRID
 for (let j = 0; j <= params.heightSegs; j++) {
@@ -82,14 +84,12 @@ canvas.addEventListener('mousemove', (e) => {
 
 // 5. ANIMATE SNAKE ON GRID
 function updateSnake() {
-  // Move forward in Z (increase j)
   let nextJ = snakeJ + 1;
   if (nextJ >= gridPoints.length) {
     nextJ = 0;
     snakeTrail = [];
   }
 
-  // Left/right control
   const direction = mouse.x > 0.2 ? 1 : mouse.x < -0.2 ? -1 : 0;
   let nextI = (snakeI + direction + params.radialSegs) % params.radialSegs;
 
