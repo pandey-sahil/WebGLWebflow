@@ -16,15 +16,19 @@ const mouse = new THREE.Vector2();
 const params = {
   radius: 10,
   length: 60,
-  radialSegs: 32,
-  heightSegs: 40,
+  radialSegs: 12,     // bigger blocks
+  heightSegs: 20,     // bigger blocks
   rotationSpeed: 0.002,
-  hoverDistance: 0.5, // how far mouse affects nearby lines
+  hoverDistance: 0.5,
 };
 
 const tunnelLines = [];
 const baseColor = 0xffffff;
 const hoverColor = 0xff4444;
+
+// Tunnel group for rotation
+const tunnelGroup = new THREE.Group();
+scene.add(tunnelGroup);
 
 // Create tunnel wires
 function createTunnelLines() {
@@ -39,7 +43,7 @@ function createTunnelLines() {
       const geom = new THREE.BufferGeometry().setFromPoints([p1, p2]);
       const line = new THREE.Line(geom, new THREE.LineBasicMaterial({ color: baseColor, transparent: true, opacity: 0.3 }));
       tunnelLines.push({ line, p1, p2 });
-      scene.add(line);
+      tunnelGroup.add(line);
     }
   }
 
@@ -56,7 +60,7 @@ function createTunnelLines() {
       const geom = new THREE.BufferGeometry().setFromPoints([p1, p2]);
       const line = new THREE.Line(geom, new THREE.LineBasicMaterial({ color: baseColor, transparent: true, opacity: 0.3 }));
       tunnelLines.push({ line, p1, p2 });
-      scene.add(line);
+      tunnelGroup.add(line);
     }
   }
 }
@@ -110,6 +114,17 @@ function getClosestDistance(ray, p1, p2) {
   return closestPointRay.distanceTo(closestPointSegment);
 }
 
+// Snake line
+const snakeLength = 60;
+const snakePath = [];
+for (let i = 0; i < snakeLength; i++) {
+  snakePath.push(new THREE.Vector3(0, 0, 0));
+}
+const snakeGeometry = new THREE.BufferGeometry().setFromPoints(snakePath);
+const snakeMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 });
+const snakeLine = new THREE.Line(snakeGeometry, snakeMaterial);
+scene.add(snakeLine);
+
 // Animation
 function animate() {
   requestAnimationFrame(animate);
@@ -117,7 +132,7 @@ function animate() {
 
   raycaster.setFromCamera(mouse, camera);
 
-  // Reset colors
+  // Reset tunnel line colors
   tunnelLines.forEach(({ line }) => {
     line.material.color.set(baseColor);
     line.material.opacity = 0.3;
@@ -125,6 +140,7 @@ function animate() {
 
   const ray = raycaster.ray;
 
+  // Hover highlight
   tunnelLines.forEach(({ line, p1, p2 }) => {
     const dist = getClosestDistance(ray, p1, p2);
     if (dist < params.hoverDistance) {
@@ -133,10 +149,16 @@ function animate() {
     }
   });
 
-  // Rotate entire tunnel
-  tunnelLines.forEach(({ line }) => {
-    line.rotation.z += params.rotationSpeed;
-  });
+  // Snake update
+  const targetPoint = new THREE.Vector3();
+  ray.at(5, targetPoint); // point in 3D space in front of camera
+  const newHead = snakePath[0].clone().lerp(targetPoint, 0.2);
+  snakePath.unshift(newHead);
+  snakePath.pop();
+  snakeGeometry.setFromPoints(snakePath);
+
+  // Rotate the whole tunnel
+  tunnelGroup.rotation.z += params.rotationSpeed;
 
   renderer.render(scene, camera);
 }
