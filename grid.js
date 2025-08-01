@@ -8,10 +8,6 @@ const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
 camera.position.set(0, 8, 4);
 camera.lookAt(0, 0, 0);
 
-// Raycaster setup
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-
 // Tunnel config
 const params = {
   radius: 10,
@@ -19,14 +15,13 @@ const params = {
   radialSegs: 32,
   heightSegs: 40,
   rotationSpeed: 0.002,
-  hoverDistance: 0.5, // how far mouse affects nearby lines
 };
 
 const tunnelLines = [];
 const baseColor = 0xffffff;
 const hoverColor = 0xff4444;
 
-// Create tunnel wires
+// Create tunnel lines
 function createTunnelLines() {
   // Rings (horizontal)
   for (let h = 0; h <= params.heightSegs; h++) {
@@ -37,8 +32,9 @@ function createTunnelLines() {
       const p1 = new THREE.Vector3(Math.cos(a1) * params.radius, Math.sin(a1) * params.radius, z);
       const p2 = new THREE.Vector3(Math.cos(a2) * params.radius, Math.sin(a2) * params.radius, z);
       const geom = new THREE.BufferGeometry().setFromPoints([p1, p2]);
-      const line = new THREE.Line(geom, new THREE.LineBasicMaterial({ color: baseColor, transparent: true, opacity: 0.3 }));
-      tunnelLines.push({ line, p1, p2 });
+      const mat = new THREE.LineBasicMaterial({ color: baseColor, transparent: true, opacity: 0.3 });
+      const line = new THREE.Line(geom, mat);
+      tunnelLines.push({ line, p1, p2, highlightIntensity: 0 });
       scene.add(line);
     }
   }
@@ -54,13 +50,13 @@ function createTunnelLines() {
       const p1 = new THREE.Vector3(x, y, z1);
       const p2 = new THREE.Vector3(x, y, z2);
       const geom = new THREE.BufferGeometry().setFromPoints([p1, p2]);
-      const line = new THREE.Line(geom, new THREE.LineBasicMaterial({ color: baseColor, transparent: true, opacity: 0.3 }));
-      tunnelLines.push({ line, p1, p2 });
+      const mat = new THREE.LineBasicMaterial({ color: baseColor, transparent: true, opacity: 0.3 });
+      const line = new THREE.Line(geom, mat);
+      tunnelLines.push({ line, p1, p2, highlightIntensity: 0 });
       scene.add(line);
     }
   }
 }
-
 createTunnelLines();
 
 // Resize
@@ -74,81 +70,19 @@ function resizeRendererToCanvas() {
   }
 }
 
-// Track mouse
+// Mouse tracking
+const mouse = new THREE.Vector2();
 canvas.addEventListener('mousemove', (event) => {
   const rect = canvas.getBoundingClientRect();
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 });
 
-// Helper: distance from line segment to ray
-function getClosestDistance(ray, p1, p2) {
-  const segmentDir = new THREE.Vector3().subVectors(p2, p1);
-  const segmentLength = segmentDir.length();
-  segmentDir.normalize();
-
-  const rayDir = ray.direction.clone();
-  const w0 = new THREE.Vector3().subVectors(p1, ray.origin);
-
-  const a = rayDir.dot(rayDir);
-  const b = rayDir.dot(segmentDir);
-  const c = segmentDir.dot(segmentDir);
-  const d = rayDir.dot(w0);
-  const e = segmentDir.dot(w0);
-
-  const denom = a * c - b * b;
-  if (Math.abs(denom) < 1e-5) return Infinity;
-
-  let s = (b * e - c * d) / denom;
-  let t = (a * e - b * d) / denom;
-
-  s = Math.max(s, 0);
-  t = Math.max(0, Math.min(t, segmentLength));
-
-  const closestPointRay = ray.origin.clone().add(rayDir.multiplyScalar(s));
-  const closestPointSegment = p1.clone().add(segmentDir.multiplyScalar(t));
-  return closestPointRay.distanceTo(closestPointSegment);
-}
-
-// Animation
-function animate() {
-  requestAnimationFrame(animate);
-  resizeRendererToCanvas();
-
-  raycaster.setFromCamera(mouse, camera);
-
-  // Reset colors
-  tunnelLines.forEach(({ line }) => {
-    line.material.color.set(baseColor);
-    line.material.opacity = 0.3;
-  });
-
-  const ray = raycaster.ray;
-const mouseScreen = new THREE.Vector2();
-mouseScreen.x = (mouse.x * 0.5 + 0.5) * canvas.width;
-mouseScreen.y = (-(mouse.y * 0.5 - 0.5)) * canvas.height;
-
-tunnelLines.forEach(({ line, p1, p2 }) => {
-  const p1Projected = p1.clone().project(camera);
-  const p2Projected = p2.clone().project(camera);
-
-  const x1 = (p1Projected.x * 0.5 + 0.5) * canvas.width;
-  const y1 = (-(p1Projected.y * 0.5 - 0.5)) * canvas.height;
-  const x2 = (p2Projected.x * 0.5 + 0.5) * canvas.width;
-  const y2 = (-(p2Projected.y * 0.5 - 0.5)) * canvas.height;
-
-  const dist = pointToSegmentDistance(mouseScreen.x, mouseScreen.y, x1, y1, x2, y2);
-  if (dist < 20) { // 20px threshold
-    line.material.color.set(hoverColor);
-    line.material.opacity = 1.0;
-  }
-});
+// 2D screen-space distance helper
 function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1;
   const dy = y2 - y1;
-  if (dx === 0 && dy === 0) {
-    return Math.hypot(px - x1, py - y1);
-  }
+  if (dx === 0 && dy === 0) return Math.hypot(px - x1, py - y1);
   const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
   const clampedT = Math.max(0, Math.min(1, t));
   const closestX = x1 + clampedT * dx;
@@ -156,13 +90,46 @@ function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - closestX, py - closestY);
 }
 
+// Animate
+function animate() {
+  requestAnimationFrame(animate);
+  resizeRendererToCanvas();
 
-  // Rotate entire tunnel
-  tunnelLines.forEach(({ line }) => {
+  const mouseScreen = new THREE.Vector2(
+    (mouse.x * 0.5 + 0.5) * canvas.width,
+    (-(mouse.y * 0.5 - 0.5)) * canvas.height
+  );
+
+  tunnelLines.forEach((tunnel) => {
+    const { line, p1, p2 } = tunnel;
+
+    // Project to screen
+    const p1Proj = p1.clone().project(camera);
+    const p2Proj = p2.clone().project(camera);
+    const x1 = (p1Proj.x * 0.5 + 0.5) * canvas.width;
+    const y1 = (-(p1Proj.y * 0.5 - 0.5)) * canvas.height;
+    const x2 = (p2Proj.x * 0.5 + 0.5) * canvas.width;
+    const y2 = (-(p2Proj.y * 0.5 - 0.5)) * canvas.height;
+
+    const dist = pointToSegmentDistance(mouseScreen.x, mouseScreen.y, x1, y1, x2, y2);
+
+    // Boost intensity if mouse is near
+    if (dist < 20) {
+      tunnel.highlightIntensity = 1;
+    }
+
+    // Decay highlight
+    tunnel.highlightIntensity *= 0.92;
+
+    // Interpolate color + opacity
+    const color = new THREE.Color(baseColor).lerp(new THREE.Color(hoverColor), tunnel.highlightIntensity);
+    line.material.color.copy(color);
+    line.material.opacity = 0.3 + 0.7 * tunnel.highlightIntensity;
+
+    // Rotate
     line.rotation.z += params.rotationSpeed;
   });
 
   renderer.render(scene, camera);
 }
-
 animate();
