@@ -23,7 +23,6 @@ const hoverColor = 0xff4444;
 
 // Create tunnel lines
 function createTunnelLines() {
-  // Rings (horizontal)
   for (let h = 0; h <= params.heightSegs; h++) {
     const z = (h / params.heightSegs) * params.length - params.length / 2;
     for (let i = 0; i < params.radialSegs; i++) {
@@ -39,7 +38,6 @@ function createTunnelLines() {
     }
   }
 
-  // Spokes (vertical)
   for (let i = 0; i < params.radialSegs; i++) {
     const angle = (i / params.radialSegs) * Math.PI * 2;
     const x = Math.cos(angle) * params.radius;
@@ -103,25 +101,24 @@ function animate() {
   tunnelLines.forEach((tunnel) => {
     const { line, p1, p2 } = tunnel;
 
-    // Project to screen
-    const p1Proj = p1.clone().project(camera);
-    const p2Proj = p2.clone().project(camera);
-    const x1 = (p1Proj.x * 0.5 + 0.5) * canvas.width;
-    const y1 = (-(p1Proj.y * 0.5 - 0.5)) * canvas.height;
-    const x2 = (p2Proj.x * 0.5 + 0.5) * canvas.width;
-    const y2 = (-(p2Proj.y * 0.5 - 0.5)) * canvas.height;
+    // Apply rotation matrix to line endpoints
+    const start = p1.clone().applyMatrix4(line.matrixWorld).project(camera);
+    const end = p2.clone().applyMatrix4(line.matrixWorld).project(camera);
+
+    // Convert to screen space
+    const x1 = (start.x * 0.5 + 0.5) * canvas.width;
+    const y1 = (-(start.y * 0.5 - 0.5)) * canvas.height;
+    const x2 = (end.x * 0.5 + 0.5) * canvas.width;
+    const y2 = (-(end.y * 0.5 - 0.5)) * canvas.height;
 
     const dist = pointToSegmentDistance(mouseScreen.x, mouseScreen.y, x1, y1, x2, y2);
 
-    // Boost intensity if mouse is near
     if (dist < 20) {
       tunnel.highlightIntensity = 1;
     }
 
-    // Decay highlight
     tunnel.highlightIntensity *= 0.92;
 
-    // Interpolate color + opacity
     const color = new THREE.Color(baseColor).lerp(new THREE.Color(hoverColor), tunnel.highlightIntensity);
     line.material.color.copy(color);
     line.material.opacity = 0.3 + 0.7 * tunnel.highlightIntensity;
