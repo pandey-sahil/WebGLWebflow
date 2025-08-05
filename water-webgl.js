@@ -2,9 +2,12 @@
 
   const canvas = document.querySelector('canvas');
   const section = document.querySelector('[webgl-anime="water"]');
-  if (!canvas || !section) return console.log(canvas, section);
+if (!canvas || !section) {
+  console.log(canvas, section);
 
-  // Style canvas behind section
+} else {
+  // your WebGLFluid logic goes here
+   // Style canvas behind section
   canvas.style.position = 'fixed';
   canvas.style.top = '0';
   canvas.style.left = '0';
@@ -43,3 +46,6 @@
   section.addEventListener('mouseleave', () => {
     fluid.opts.TRIGGER = 'none';
   });
+}
+
+
