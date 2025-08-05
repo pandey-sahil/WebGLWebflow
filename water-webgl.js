@@ -2,7 +2,7 @@
 
   const canvas = document.querySelector('canvas');
   const section = document.querySelector('[webgl-anime="water"]');
-  if (!canvas || !section) return;
+  if (!canvas || !section) return console.log(canvas, section);
 
   // Style canvas behind section
   canvas.style.position = 'fixed';
