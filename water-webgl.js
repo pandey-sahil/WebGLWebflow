@@ -1,4 +1,4 @@
-import WebGLFluid from 'https://cdn.jsdelivr.net/npm/webgl-fluid@0.3/dist/webgl-fluid.mjs';
+
 
 window.addEventListener('load', () => {
   const canvas = document.querySelector('canvas');
