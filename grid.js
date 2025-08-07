@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 
-
 // Canvas + renderer
 const canvas = document.querySelector('.tunnelcanvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -138,5 +137,3 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-
-
