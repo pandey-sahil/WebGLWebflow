@@ -1,4 +1,5 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js';
+import * as THREE from 'three';
+
 
 // Canvas + renderer
 const canvas = document.querySelector('.tunnelcanvas');
@@ -76,7 +77,7 @@ canvas.addEventListener('mousemove', (event) => {
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 });
 
-// 2D screen-space distance helper
+// Distance helper
 function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -88,10 +89,21 @@ function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - closestX, py - closestY);
 }
 
+// Scroll direction tracking
+let scrollDirection = 1;
+let currentDirection = 1;
+
+window.addEventListener('wheel', (event) => {
+  scrollDirection = event.deltaY > 0 ? 1 : -1;
+});
+
 // Animate
 function animate() {
   requestAnimationFrame(animate);
   resizeRendererToCanvas();
+
+  // Smoothly interpolate rotation direction
+  currentDirection += (scrollDirection - currentDirection) * 0.05;
 
   const mouseScreen = new THREE.Vector2(
     (mouse.x * 0.5 + 0.5) * canvas.width,
@@ -105,17 +117,13 @@ function animate() {
     const start = p1.clone().applyMatrix4(line.matrixWorld).project(camera);
     const end = p2.clone().applyMatrix4(line.matrixWorld).project(camera);
 
-    // Convert to screen space
     const x1 = (start.x * 0.5 + 0.5) * canvas.width;
     const y1 = (-(start.y * 0.5 - 0.5)) * canvas.height;
     const x2 = (end.x * 0.5 + 0.5) * canvas.width;
     const y2 = (-(end.y * 0.5 - 0.5)) * canvas.height;
 
     const dist = pointToSegmentDistance(mouseScreen.x, mouseScreen.y, x1, y1, x2, y2);
-
-    if (dist < 20) {
-      tunnel.highlightIntensity = 1;
-    }
+    if (dist < 20) tunnel.highlightIntensity = 1;
 
     tunnel.highlightIntensity *= 0.92;
 
@@ -123,9 +131,14 @@ function animate() {
     line.material.color.copy(color);
     line.material.opacity = 0.3 + 0.7 * tunnel.highlightIntensity;
 
-    // Rotate
-    line.rotation.z += params.rotationSpeed;
+    // Scroll-reactive rotation
+    line.rotation.z += params.rotationSpeed * currentDirection;
   });
+
+  renderer.render(scene, camera);
+}
+animate();
+
 
   renderer.render(scene, camera);
 }
