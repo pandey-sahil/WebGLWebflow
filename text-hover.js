@@ -5,7 +5,7 @@
             
             if (!container || !canvas || !image) {
                 console.error("Required elements not found");
-                return;
+                return console.log(container, canvas, image);;
             }
 
             // Settings
