@@ -1,4 +1,6 @@
-       function initWebGLDistortion() {
+   import * as THREE from 'three';
+
+function initWebGLDistortion() {
             const container = document.querySelector("[data-webgl-container]");
             const canvas = container?.querySelector(".g_canvas_distortion");
             const image = document.querySelector("[distorted-image]");
