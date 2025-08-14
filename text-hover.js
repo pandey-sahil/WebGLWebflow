@@ -1,7 +1,8 @@
        function initWebGLDistortion() {
             const container = document.querySelector("[data-webgl-container]");
             const canvas = container?.querySelector(".g_canvas_distortion");
-            const image = document.getElementById("distorted-image");
+            const image = document.querySelector("[distorted-image]");
+              
             
             if (!container || !canvas || !image) {
                 console.error("Required elements not found");
