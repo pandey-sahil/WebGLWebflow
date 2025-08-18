@@ -1,6 +1,6 @@
-
-  document.addEventListener("DOMContentLoaded", () => {
 import * as THREE from "three";
+  document.addEventListener("DOMContentLoaded", () => {
+
 class EffectShell {
   constructor(container = document.body, itemsWrapper = null) {
     this.container = container
