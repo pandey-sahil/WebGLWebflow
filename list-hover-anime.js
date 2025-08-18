@@ -1,5 +1,5 @@
 
-
+  document.addEventListener("DOMContentLoaded", () => {
 
 class EffectShell {
   constructor(container = document.body, itemsWrapper = null) {
@@ -209,3 +209,4 @@ class RGBShiftEffect extends EffectShell {
 // init
 const wrapper = document.querySelector('.portfolio20_list')
 new RGBShiftEffect(wrapper, wrapper, { strength: 0.3 })
+  });
