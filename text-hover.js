@@ -1,4 +1,4 @@
- function initWebGLDistortion() {
+       function initWebGLDistortion() {
             const container = document.querySelector("[data-webgl-container]");
             const canvas = container?.querySelector(".g_canvas_distortion");
             const image = document.getElementById("distorted-image");
@@ -503,48 +503,9 @@
             loadTexture();
         }
 
-        // Initialize controls
-        function initControls() {
-            const controls = {
-                distortion: document.getElementById('distortion'),
-                chromatic: document.getElementById('chromatic'),
-                falloff: document.getElementById('falloff'),
-                alpha: document.getElementById('alpha')
-            };
-
-            const values = {
-                distortion: document.getElementById('distortion-val'),
-                chromatic: document.getElementById('chromatic-val'),
-                falloff: document.getElementById('falloff-val'),
-                alpha: document.getElementById('alpha-val')
-            };
-
-            Object.keys(controls).forEach(key => {
-                const control = controls[key];
-                const valueDisplay = values[key];
-                
-                control.addEventListener('input', () => {
-                    const value = parseFloat(control.value);
-                    valueDisplay.textContent = value.toFixed(3);
-                    
-                    const settingsMap = {
-                        distortion: 'distortionStrength',
-                        chromatic: 'chromaticAberration',
-                        falloff: 'falloff',
-                        alpha: 'alpha'
-                    };
-                    
-                    if (window.updateDistortionSettings) {
-                        window.updateDistortionSettings({
-                            [settingsMap[key]]: value
-                        });
-                    }
-                });
-            });
-        }
 
         // Initialize everything when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
             initWebGLDistortion();
-            // initControls();
+           // initControls();
         });
