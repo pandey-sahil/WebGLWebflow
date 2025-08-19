@@ -263,13 +263,11 @@ class RGBShiftEffect extends EffectShell {
     let targetAspect = targetWidth / targetHeight;
 
     // cover logic
-    let scaleX = 1, scaleY = 1;
+    let coverScaleX = 1, coverScaleY = 1;
     if (imageAspect > targetAspect) {
-      scaleY = 1;
-      scaleX = imageAspect / targetAspect;
+      coverScaleX = imageAspect / targetAspect;
     } else {
-      scaleX = 1;
-      scaleY = targetAspect / imageAspect;
+      coverScaleY = targetAspect / imageAspect;
     }
 
     // convert px to world units
@@ -281,7 +279,9 @@ class RGBShiftEffect extends EffectShell {
     let planeScaleX = (targetWidth / this.viewport.width) * worldWidth;
     let planeScaleY = (targetHeight / this.viewport.height) * worldHeight;
 
-    this.plane.scale.set(planeScaleX * scaleX, planeScaleY * scaleY, 1);
+    // ✅ Final scale (288x250 px, cover fit)
+    this.plane.scale.set(planeScaleX * coverScaleX, planeScaleY * coverScaleY, 1);
+
     this.uniforms.uTexture.value = tex;
   }
 }
