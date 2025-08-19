@@ -146,9 +146,7 @@ class WebGL {
         this.renderer.setSize(this.viewport.width, this.viewport.height);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.domElement.classList.add("list-webgl-canvas");
-        this.renderer.domElement.style.position = 'sticky';
-        this.renderer.domElement.style.top = 0;
-        this.renderer.domElement.style.left = 0;
+ 
         this.container.appendChild(this.renderer.domElement);
     }
 
