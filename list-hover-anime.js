@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+
 const vertexShader = `
 uniform vec2 uOffset;
 varying vec2 vUv;
@@ -38,8 +39,11 @@ let targetY = 0;
 
 class WebGL {
     constructor() {
-        this.container = document.body; 
-        this.links = [...document.querySelectorAll('[webgl-anime="list-hover"]')]; // ✅ lower case
+        // ✅ Wrapper section with attribute
+        this.container = document.querySelector('[webgl-anime="list-hover-wrapper"]');
+        if (!this.container) return;
+
+        this.links = [...this.container.querySelectorAll('[webgl-anime="list-hover"]')];
         this.scene = new THREE.Scene();
         this.perspective = 1000;
         this.sizes = new THREE.Vector2(0, 0);
@@ -52,7 +56,7 @@ class WebGL {
 
         // Load textures from images inside each list-hover
         this.textures = this.links.map(link => {
-            const img = link.querySelector('[webgl-anime="list-hover-image"]'); // ✅ lower case
+            const img = link.querySelector('[webgl-anime="list-hover-image"]');
             return new THREE.TextureLoader().load(img.src);
         });
 
@@ -100,9 +104,10 @@ class WebGL {
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(this.viewport.width, this.viewport.height);
         this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.domElement.style.position = 'fixed';
-        this.renderer.domElement.style.top = '0';
-        this.renderer.domElement.style.left = '0';
+
+        // ✅ Add class for styling
+        this.renderer.domElement.classList.add("list-webgl-canvas");
+
         this.container.appendChild(this.renderer.domElement);
     }
 
@@ -151,4 +156,3 @@ class WebGL {
 }
 
 new WebGL();
-
