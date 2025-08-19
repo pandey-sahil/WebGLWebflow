@@ -260,19 +260,22 @@ class RGBShiftEffect extends EffectShell {
   }
 
   onMouseMove() {
-    // Optional: if you want parallax after snapping
-    const vec = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5);
-    vec.unproject(this.camera);
-
-    const dir = vec.sub(this.camera.position).normalize();
-    const distance = -this.camera.position.z / dir.z;
-    const pos = this.camera.position.clone().add(dir.multiplyScalar(distance));
-
-    this.position.copy(pos);
+    if (!this.currentItem) return;
+    
+    // Convert mouse position to world coordinates
+    const distance = Math.abs(this.camera.position.z);
+    const worldHeight = 2 * Math.tan((this.camera.fov * Math.PI) / 360) * distance;
+    const worldWidth = worldHeight * this.viewport.aspectRatio;
+    
+    // Calculate world position based on mouse
+    const worldX = (this.mouse.x * worldWidth) / 2;
+    const worldY = (this.mouse.y * worldHeight) / 2;
+    
+    this.position.set(worldX, worldY, 0);
 
     gsap.to(this.plane.position, {
-      x: pos.x,
-      y: pos.y,
+      x: worldX,
+      y: this.plane.position.y, // keep Y position from DOM element
       duration: 0.4,
       ease: 'power4.out',
       onUpdate: this.onPositionUpdate.bind(this)
