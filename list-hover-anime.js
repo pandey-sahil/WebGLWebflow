@@ -216,13 +216,13 @@ class WebGL {
             -(targetY - this.offset.y) * SETTINGS.deformation.strength
         );
 
-        // Enhanced RGB split with deformation correlation
-        const deformationIntensity = Math.abs(targetX - this.offset.x) + Math.abs(targetY - this.offset.y);
-        const rgbIntensity = (deformationIntensity * 0.00001) + (Math.sin(Date.now() * SETTINGS.effects.rgbSpeed) * SETTINGS.effects.rgbAnimation);
+        // RGB split on mouse movement only
+        const mouseMovementX = (targetX - this.offset.x) * 0.00002;
+        const mouseMovementY = (targetY - this.offset.y) * 0.00002;
         
         this.uniforms.uRGBOffset.value.set(
-            rgbIntensity * SETTINGS.effects.rgbSplit,
-            Math.cos(Date.now() * SETTINGS.effects.rgbSpeed) * SETTINGS.effects.rgbAnimation * SETTINGS.effects.rgbSplit
+            mouseMovementX * SETTINGS.effects.rgbSplit,
+            mouseMovementY * SETTINGS.effects.rgbSplit
         );
 
         // Smooth transition handling
