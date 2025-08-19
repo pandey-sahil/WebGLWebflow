@@ -50,22 +50,22 @@ uniform vec2 uRGBOffset;
 varying vec2 vUv;
 
 void main(){
-    // RGB split sampling with enhanced effect during deformation
-    vec2 rUV = vUv + uRGBOffset;
-    vec2 gUV = vUv;
-    vec2 bUV = vUv - uRGBOffset;
+    // RGB split offset strength
+    float offsetStrength = 0.01;
+    
+    // RGB split sampling using your reference method
+    vec4 texR = texture2D(uTexture, vUv + uRGBOffset * offsetStrength);
+    vec4 texG = texture2D(uTexture, vUv);
+    vec4 texB = texture2D(uTexture, vUv - uRGBOffset * offsetStrength);
+    
+    vec3 newColor = vec3(texR.r, texG.g, texB.b);
 
-    vec3 newColor = vec3(
-        texture2D(uTexture, rUV).r,
-        texture2D(uTexture, gUV).g,
-        texture2D(uTexture, bUV).b
-    );
-
-    vec3 prevColor = vec3(
-        texture2D(uPrevTexture, rUV).r,
-        texture2D(uPrevTexture, gUV).g,
-        texture2D(uPrevTexture, bUV).b
-    );
+    // Previous texture with same RGB split
+    vec4 prevTexR = texture2D(uPrevTexture, vUv + uRGBOffset * offsetStrength);
+    vec4 prevTexG = texture2D(uPrevTexture, vUv);
+    vec4 prevTexB = texture2D(uPrevTexture, vUv - uRGBOffset * offsetStrength);
+    
+    vec3 prevColor = vec3(prevTexR.r, prevTexG.g, prevTexB.b);
 
     // crossfade between previous and new texture
     vec3 finalColor = mix(prevColor, newColor, uMixFactor);
@@ -216,14 +216,11 @@ class WebGL {
             -(targetY - this.offset.y) * SETTINGS.deformation.strength
         );
 
-        // RGB split on mouse movement only
-        const mouseMovementX = (targetX - this.offset.x) * 0.00002;
-        const mouseMovementY = (targetY - this.offset.y) * 0.00002;
+        // RGB split on mouse movement using your reference method
+        const mouseMovementX = (targetX - this.offset.x) * 0.0001;
+        const mouseMovementY = (targetY - this.offset.y) * 0.0001;
         
-        this.uniforms.uRGBOffset.value.set(
-            mouseMovementX * SETTINGS.effects.rgbSplit,
-            mouseMovementY * SETTINGS.effects.rgbSplit
-        );
+        this.uniforms.uRGBOffset.value.set(mouseMovementX, mouseMovementY);
 
         // Smooth transition handling
         if (this.transitioning && this.uniforms.uMixFactor.value < 1.0) {
