@@ -6,9 +6,8 @@ window.addEventListener('load', () => {
 
   // 🔧 SETTINGS
   const settings = {
-    gridSize: 20.0,
-    aberrationStrength: 0.003, // smaller RGB split
-    distortionAmount: 0.15,    // slightly reduced distortion
+    aberrationStrength: 0.002, // very small RGB split
+    distortionAmount: 0.1,     // lighter distortion
     easeFactor: 0.02,
   };
 
@@ -38,7 +37,6 @@ window.addEventListener('load', () => {
       u_prevMouse: { value: new THREE.Vector2(0.5, 0.5) },
       u_aberrationIntensity: { value: 0 },
       u_time: { value: 0 },
-      u_gridSize: { value: settings.gridSize },
       u_aberrationStrength: { value: settings.aberrationStrength },
       u_distortionAmount: { value: settings.distortionAmount },
     };
@@ -57,25 +55,21 @@ window.addEventListener('load', () => {
       uniform vec2 u_mouse;
       uniform vec2 u_prevMouse;
       uniform float u_aberrationIntensity;
-      uniform float u_gridSize;
       uniform float u_aberrationStrength;
       uniform float u_distortionAmount;
 
       void main() {
-        vec2 gridUV = floor(vUv * vec2(u_gridSize)) / vec2(u_gridSize);
-        vec2 centerOfPixel = gridUV + vec2(1.0 / u_gridSize, 1.0 / u_gridSize);
-
         vec2 mouseDirection = u_mouse - u_prevMouse;
-        vec2 pixelToMouseDirection = centerOfPixel - u_mouse;
+        vec2 pixelToMouseDirection = vUv - u_mouse;
         float pixelDistanceToMouse = length(pixelToMouseDirection);
 
-        // Smaller, softer circle
-        float strength = smoothstep(0.15, 0.0, pixelDistanceToMouse);
+        // smaller and smoother circle falloff
+        float strength = smoothstep(0.12, 0.0, pixelDistanceToMouse);
 
         vec2 uvOffset = strength * -mouseDirection * u_distortionAmount;
         vec2 uv = vUv - uvOffset;
 
-        // Much smaller RGB shift
+        // very subtle RGB split
         vec4 colorR = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * u_aberrationStrength, 0.0));
         vec4 colorG = texture2D(u_texture, uv);
         vec4 colorB = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * u_aberrationStrength, 0.0));
