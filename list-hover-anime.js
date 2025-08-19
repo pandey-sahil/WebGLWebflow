@@ -1,71 +1,290 @@
-
 import * as THREE from "three";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
-import { RGBShiftShader } from "three/addons/shaders/RGBShiftShader.js";
+import gsap from "gsap";
 
-class RGBShiftEffect {
-  constructor(wrapper, img, { strength = 0.003 } = {}) {
-    this.wrapper = wrapper;
-    this.img = img;
+class EffectShell {
+  constructor(container, itemsWrapper) {
+    this.container = container;
+    this.itemsWrapper = itemsWrapper;
+    if (!this.container || !this.itemsWrapper) return;
 
-    const canvas = document.createElement("canvas");
-    canvas.classList.add("portfolio20-canvas");
-    this.wrapper.appendChild(canvas);
-    this.img.style.display = "none";
+    this.setup();
+    this.initEffectShell().then(() => {
+      this.isLoaded = true;
+      if (this.isMouseOver) this.onMouseOver(this.tempItemIndex);
+      this.tempItemIndex = null;
+    });
+    this.createEventsListeners();
+  }
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas });
-    this.renderer.setSize(this.wrapper.clientWidth, this.wrapper.clientHeight);
+  setup() {
+    window.addEventListener("resize", this.onWindowResize.bind(this), false);
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer.setSize(this.viewport.width, this.viewport.height);
     this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    this.camera = new THREE.PerspectiveCamera(
+      40,
+      this.viewport.aspectRatio,
+      0.1,
+      100
+    );
+    this.camera.position.set(0, 0, 3);
 
-    const tex = new THREE.TextureLoader().load(this.img.src);
-    const geometry = new THREE.PlaneGeometry(2, 2);
-    const material = new THREE.MeshBasicMaterial({ map: tex });
-    this.scene.add(new THREE.Mesh(geometry, material));
+    this.mouse = new THREE.Vector2();
+    this.timeSpeed = 2;
+    this.time = 0;
+    this.clock = new THREE.Clock();
 
-    this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-
-    this.rgbPass = new ShaderPass(RGBShiftShader);
-    this.rgbPass.uniforms["amount"].value = strength;
-    this.rgbPass.uniforms["angle"].value = 0.0;
-    this.composer.addPass(this.rgbPass);
-
-    this.mouse = new THREE.Vector2(0, 0);
-    this.addMouseListeners();
-
-    this.animate();
+    this.renderer.setAnimationLoop(this.render.bind(this));
   }
 
-  addMouseListeners() {
-    this.wrapper.addEventListener("mousemove", e => {
-      const rect = this.wrapper.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width - 0.5;
-      const y = (e.clientY - rect.top) / rect.height - 0.5;
-      this.mouse.set(x, y);
+  render() {
+    this.time += this.clock.getDelta() * this.timeSpeed;
+    this.renderer.render(this.scene, this.camera);
+  }
 
-      // map mouse X/Y to shader values
-      this.rgbPass.uniforms["angle"].value = Math.atan2(y, x);
-      this.rgbPass.uniforms["amount"].value = 0.002 + Math.sqrt(x * x + y * y) * 0.02;
-    });
+  initEffectShell() {
+    const loader = new THREE.TextureLoader();
+    const promises = this.itemsElements.map((item, index) =>
+      this.loadTexture(loader, item.img ? item.img.src : null, index)
+    );
 
-    this.wrapper.addEventListener("mouseleave", () => {
-      // reset on mouse leave
-      this.rgbPass.uniforms["amount"].value = 0.0;
+    return Promise.all(promises).then((results) => {
+      results.forEach((res, i) => {
+        this.items[i].texture = res.texture;
+      });
     });
   }
 
-  animate() {
-    requestAnimationFrame(() => this.animate());
-    this.composer.render();
+  createEventsListeners() {
+    this.items.forEach((item, index) => {
+      item.element.addEventListener(
+        "mouseover",
+        this._onMouseOver.bind(this, index),
+        false
+      );
+    });
+
+    this.container.addEventListener(
+      "mousemove",
+      this._onMouseMove.bind(this),
+      false
+    );
+    this.itemsWrapper.addEventListener(
+      "mouseleave",
+      this._onMouseLeave.bind(this),
+      false
+    );
+  }
+
+  _onMouseLeave(e) {
+    this.isMouseOver = false;
+    this.onMouseLeave(e);
+  }
+
+  _onMouseMove(e) {
+    this.mouse.x = (e.clientX / this.viewport.width) * 2 - 1;
+    this.mouse.y = -(e.clientY / this.viewport.height) * 2 + 1;
+    this.onMouseMove(e);
+  }
+
+  _onMouseOver(i, e) {
+    this.tempItemIndex = i;
+    this.onMouseOver(i, e);
+  }
+
+  onWindowResize() {
+    this.camera.aspect = this.viewport.aspectRatio;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(this.viewport.width, this.viewport.height);
+  }
+
+  get viewport() {
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    return { width: w, height: h, aspectRatio: w / h };
+  }
+
+  get viewSize() {
+    const dist = this.camera.position.z;
+    const vFov = (this.camera.fov * Math.PI) / 180;
+    const height = 2 * Math.tan(vFov / 2) * dist;
+    const width = height * this.viewport.aspectRatio;
+    return { width, height, vFov };
+  }
+
+  get itemsElements() {
+    const items = [
+      ...this.itemsWrapper.querySelectorAll(".portfolio20_item-link"),
+    ];
+    this.items = items.map((item, index) => ({
+      element: item,
+      img: item.querySelector(".portfolio20_image") || null,
+      index,
+    }));
+    return this.items;
+  }
+
+  loadTexture(loader, url, index) {
+    return new Promise((resolve, reject) => {
+      if (!url) {
+        resolve({ texture: null, index });
+        return;
+      }
+      loader.load(
+        url,
+        (tex) => resolve({ texture: tex, index }),
+        undefined,
+        (err) => reject(err)
+      );
+    });
+  }
+
+  // placeholders
+  onMouseEnter() {}
+  onMouseLeave() {}
+  onMouseMove() {}
+  onMouseOver() {}
+}
+
+class RGBShiftEffect extends EffectShell {
+  constructor(container, itemsWrapper, options = {}) {
+    super(container, itemsWrapper);
+    if (!this.container || !this.itemsWrapper) return;
+    this.options = { strength: options.strength || 0.25 };
+    this.init();
+  }
+
+  init() {
+    this.position = new THREE.Vector3(0, 0, 0);
+    this.scale = new THREE.Vector3(1, 1, 1);
+
+    this.geometry = new THREE.PlaneGeometry(1, 1, 32, 32);
+
+    this.uniforms = {
+      uTexture: { value: null },
+      uOffset: { value: new THREE.Vector2(0, 0) },
+      uAlpha: { value: 0 },
+    };
+
+    this.material = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `
+        uniform vec2 uOffset;
+        varying vec2 vUv;
+        vec3 deformationCurve(vec3 pos, vec2 uv, vec2 offset) {
+          float M_PI = 3.141592653589793;
+          pos.x += (sin(uv.y * M_PI) * offset.x);
+          pos.y += (sin(uv.x * M_PI) * offset.y);
+          return pos;
+        }
+        void main() {
+          vUv = uv;
+          vec3 newPos = deformationCurve(position, uv, uOffset);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
+        }`,
+      fragmentShader: `
+        uniform sampler2D uTexture;
+        uniform float uAlpha;
+        uniform vec2 uOffset;
+        varying vec2 vUv;
+        vec3 rgbShift(sampler2D tex, vec2 uv, vec2 offset) {
+          float r = texture2D(tex, vUv + offset).r;
+          vec2 gb = texture2D(tex, vUv).gb;
+          return vec3(r, gb);
+        }
+        void main() {
+          vec3 color = rgbShift(uTexture, vUv, uOffset);
+          gl_FragColor = vec4(color, uAlpha);
+        }`,
+      transparent: true,
+    });
+
+    this.plane = new THREE.Mesh(this.geometry, this.material);
+    this.scene.add(this.plane);
+  }
+
+  onMouseEnter() {
+    if (!this.currentItem || !this.isMouseOver) {
+      this.isMouseOver = true;
+      gsap.to(this.uniforms.uAlpha, {
+        value: 1,
+        duration: 0.5,
+        ease: "power4.out",
+      });
+    }
+  }
+
+  onMouseLeave() {
+    gsap.to(this.uniforms.uAlpha, {
+      value: 0,
+      duration: 0.5,
+      ease: "power4.out",
+    });
+  }
+
+  onMouseMove() {
+    const mapRange = (v, a, b, c, d) =>
+      c + ((v - a) * (d - c)) / (b - a);
+
+    const x = mapRange(
+      this.mouse.x,
+      -1,
+      1,
+      -this.viewSize.width / 2,
+      this.viewSize.width / 2
+    );
+    const y = mapRange(
+      this.mouse.y,
+      -1,
+      1,
+      -this.viewSize.height / 2,
+      this.viewSize.height / 2
+    );
+
+    this.position.set(x, y, 0);
+
+    gsap.to(this.plane.position, {
+      x,
+      y,
+      duration: 1,
+      ease: "power4.out",
+      onUpdate: this.onPositionUpdate.bind(this),
+    });
+  }
+
+  onPositionUpdate() {
+    const offset = this.plane.position
+      .clone()
+      .sub(this.position)
+      .multiplyScalar(-this.options.strength);
+    this.uniforms.uOffset.value = offset;
+  }
+
+  onMouseOver(index) {
+    if (!this.isLoaded) return;
+    this.onMouseEnter();
+    if (this.currentItem && this.currentItem.index === index) return;
+    this.onTargetChange(index);
+  }
+
+  onTargetChange(index) {
+    this.currentItem = this.items[index];
+    if (!this.currentItem.texture) return;
+
+    const ratio =
+      this.currentItem.img.naturalWidth /
+      this.currentItem.img.naturalHeight;
+
+    this.scale.set(ratio, 1, 1);
+    this.uniforms.uTexture.value = this.currentItem.texture;
+    this.plane.scale.copy(this.scale);
   }
 }
 
-document.querySelectorAll(".portfolio20_item-link").forEach(item => {
-  const img = item.querySelector(".portfolio20_image");
-  if (img) new RGBShiftEffect(item, img, { strength: 0.0 });
-});
+// init
+const wrapper = document.querySelector(".portfolio20_list");
+new RGBShiftEffect(wrapper, wrapper, { strength: 0.3 });
