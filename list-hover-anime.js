@@ -51,7 +51,6 @@ void main(){
     gl_FragColor = vec4(finalColor, uAlpha);
 }
 `;
-
 function lerp(start, end, t) {
     return start * (1.0 - t) + end * t;
 }
@@ -78,7 +77,7 @@ class WebGL {
             uRGBOffset: { value: new THREE.Vector2(0.0, 0.0) }
         };
 
-        // Load textures
+        // Load textures from each list item
         this.textures = this.links.map(link => {
             const img = link.querySelector('[webgl-anime="image-src"]');
             if (!img) return null;
@@ -105,11 +104,10 @@ class WebGL {
     showImage(idx, link) {
         if (!this.textures[idx]) return;
 
-        // set previous texture for crossfade
         this.uniforms.uPrevTexture.value = this.uniforms.uTexture.value;
         this.uniforms.uTexture.value = this.textures[idx];
         this.uniforms.uAlpha.value = 1.0;
-        this.uniforms.uMixFactor.value = 0.0; // start transition
+        this.uniforms.uMixFactor.value = 0.0;
 
         this.currentIndex = idx;
         this.transitioning = true;
@@ -123,42 +121,34 @@ class WebGL {
         }
     }
 
-get viewport() {
-    const bounds = this.container.getBoundingClientRect();
-    return {
-        width: bounds.width,
-        height: bounds.height,
-        aspectRatio: bounds.width / bounds.height
-    };
-}
-
-    addEventListeners() {
-        window.addEventListener('mouseenter', () => this.linkHovered = true);
-        window.addEventListener('mouseleave', () => this.linkHovered = false);
+    get viewport() {
+        const rect = this.container.getBoundingClientRect();
+        return {
+            width: rect.width,
+            height: rect.height,
+            aspectRatio: rect.width / rect.height
+        };
     }
 
-setUpCamera() {
-    // measure wrapper size instead of window
-    const bounds = this.container.getBoundingClientRect();
+    addEventListeners() {
+        this.container.addEventListener('mouseenter', () => this.linkHovered = true);
+        this.container.addEventListener('mouseleave', () => this.linkHovered = false);
+        window.addEventListener('resize', this.onWindowResize.bind(this));
+    }
 
-    // calculate perspective from wrapper height
-    this.perspective = 800; // keep your original perspective depth
-    const fov = (180 * (2 * Math.atan(bounds.height / 2 / this.perspective))) / Math.PI;
+    setUpCamera() {
+        const { width, height, aspectRatio } = this.viewport;
+        const fov = (180 * (2 * Math.atan(height / 2 / this.perspective))) / Math.PI;
+        this.camera = new THREE.PerspectiveCamera(fov, aspectRatio, 0.1, 1000);
+        this.camera.position.set(0, 0, this.perspective);
 
-    // create camera
-    this.camera = new THREE.PerspectiveCamera(fov, bounds.width / bounds.height, 0.1, 1000);
-    this.camera.position.set(0, 0, this.perspective);
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        this.renderer.setSize(width, height);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.domElement.classList.add("list-webgl-canvas");
 
-    // create renderer
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setSize(bounds.width, bounds.height);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-
-
-    // append canvas
-    this.container.appendChild(this.renderer.domElement);
-}
-
+        this.container.appendChild(this.renderer.domElement);
+    }
 
     createMesh() {
         this.geometry = new THREE.PlaneGeometry(1, 1, 20, 20);
@@ -172,19 +162,19 @@ setUpCamera() {
         this.scene.add(this.mesh);
     }
 
-  onWindowResize() {
-    const vp = this.viewport;
-    this.camera.aspect = vp.aspectRatio;
-    this.camera.fov = (180 * (2 * Math.atan(vp.height / 2 / this.perspective))) / Math.PI;
-    this.renderer.setSize(vp.width, vp.height);
-    this.camera.updateProjectionMatrix();
-}
-
+    onWindowResize() {
+        const { width, height, aspectRatio } = this.viewport;
+        this.camera.aspect = aspectRatio;
+        this.camera.fov = (180 * (2 * Math.atan(height / 2 / this.perspective))) / Math.PI;
+        this.renderer.setSize(width, height);
+        this.camera.updateProjectionMatrix();
+    }
 
     onMouseMove() {
-        window.addEventListener('mousemove', (e) => {
-            targetX = e.clientX;
-            targetY = e.clientY;
+        this.container.addEventListener('mousemove', (e) => {
+            const rect = this.container.getBoundingClientRect();
+            targetX = e.clientX - rect.left;
+            targetY = e.clientY - rect.top;
         });
     }
 
@@ -197,25 +187,26 @@ setUpCamera() {
             -(targetY - this.offset.y) * 0.0005
         );
 
-        // RGB split subtle movement
+        // RGB subtle animation
         this.uniforms.uRGBOffset.value.set(
             Math.sin(Date.now() * 0.002) * 0.5,
             Math.cos(Date.now() * 0.002) * 0.5
         );
 
-        // Smooth crossfade transition
+        // Crossfade
         if (this.transitioning && this.uniforms.uMixFactor.value < 1.0) {
-            this.uniforms.uMixFactor.value += 0.05; // speed of transition
+            this.uniforms.uMixFactor.value += 0.05;
             if (this.uniforms.uMixFactor.value >= 1.0) {
                 this.transitioning = false;
                 this.uniforms.uPrevTexture.value = null;
             }
         }
 
-        // Position so image follows mouse naturally
+        // Position mesh so it follows mouse within wrapper
+        const { width, height } = this.viewport;
         this.mesh.position.set(
-            this.offset.x - (this.viewport.width / 2) + this.mesh.scale.x / 2,
-            (this.viewport.height / 2) - this.offset.y - this.mesh.scale.y / 2,
+            this.offset.x - (width / 2) + this.mesh.scale.x / 2,
+            (height / 2) - this.offset.y - this.mesh.scale.y / 2,
             0
         );
 
