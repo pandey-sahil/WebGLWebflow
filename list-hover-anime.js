@@ -47,23 +47,30 @@ uniform sampler2D uPrevTexture;
 uniform float uAlpha;
 uniform float uMixFactor;  // controls crossfade
 uniform vec2 uRGBOffset;
+uniform float uTime;
 varying vec2 vUv;
 
 void main(){
-    // RGB split offset strength
-    float offsetStrength = 0.01;
+    // Ripple effect for RGB offset
+    vec2 center = vec2(0.5, 0.5);
+    float distance = length(vUv - center);
+    float ripple = sin(distance * 20.0 - uTime * 5.0) * 0.02;
     
-    // RGB split sampling using your reference method
-    vec4 texR = texture2D(uTexture, vUv + uRGBOffset * offsetStrength);
+    // RGB split with ripple effect
+    float offsetStrength = 0.01;
+    vec2 rippleOffset = uRGBOffset + vec2(ripple);
+    
+    // RGB split sampling with ripple
+    vec4 texR = texture2D(uTexture, vUv + rippleOffset * offsetStrength);
     vec4 texG = texture2D(uTexture, vUv);
-    vec4 texB = texture2D(uTexture, vUv - uRGBOffset * offsetStrength);
+    vec4 texB = texture2D(uTexture, vUv - rippleOffset * offsetStrength);
     
     vec3 newColor = vec3(texR.r, texG.g, texB.b);
 
-    // Previous texture with same RGB split
-    vec4 prevTexR = texture2D(uPrevTexture, vUv + uRGBOffset * offsetStrength);
+    // Previous texture with same RGB split ripple
+    vec4 prevTexR = texture2D(uPrevTexture, vUv + rippleOffset * offsetStrength);
     vec4 prevTexG = texture2D(uPrevTexture, vUv);
-    vec4 prevTexB = texture2D(uPrevTexture, vUv - uRGBOffset * offsetStrength);
+    vec4 prevTexB = texture2D(uPrevTexture, vUv - rippleOffset * offsetStrength);
     
     vec3 prevColor = vec3(prevTexR.r, prevTexG.g, prevTexB.b);
 
@@ -97,7 +104,8 @@ class WebGL {
             uAlpha: { value: 0.0 },
             uOffset: { value: new THREE.Vector2(0.0, 0.0) },
             uMixFactor: { value: 1.0 },
-            uRGBOffset: { value: new THREE.Vector2(0.0, 0.0) }
+            uRGBOffset: { value: new THREE.Vector2(0.0, 0.0) },
+            uTime: { value: 0.0 }
         };
 
         // Load textures from each list item
@@ -207,6 +215,9 @@ class WebGL {
     }
 
     render() {
+        // Update time for ripple effect
+        this.uniforms.uTime.value = Date.now() * 0.001;
+        
         this.offset.x = lerp(this.offset.x, targetX, SETTINGS.deformation.smoothing);
         this.offset.y = lerp(this.offset.y, targetY, SETTINGS.deformation.smoothing);
 
@@ -216,9 +227,9 @@ class WebGL {
             -(targetY - this.offset.y) * SETTINGS.deformation.strength
         );
 
-        // RGB split on mouse movement using your reference method
-        const mouseMovementX = (targetX - this.offset.x) * 0.0001;
-        const mouseMovementY = (targetY - this.offset.y) * 0.0001;
+        // RGB split on mouse movement 
+        const mouseMovementX = (targetX - this.offset.x) * 0.001;
+        const mouseMovementY = (targetY - this.offset.y) * 0.001;
         
         this.uniforms.uRGBOffset.value.set(mouseMovementX, mouseMovementY);
 
