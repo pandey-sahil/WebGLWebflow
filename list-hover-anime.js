@@ -1,143 +1,89 @@
 import * as THREE from "three";
 
-class WebGLDistortion {
-  constructor() {
-    this.container = document.querySelector("[data-webgl-container]");
-    this.canvas = this.container?.querySelector(".g_canvas_distortion");
-    this.images = document.querySelectorAll("[distorted-image]");
+function initWebGLDistortion() {
+  const container = document.querySelector("[data-webgl-container]");
+  const canvas = container?.querySelector(".g_canvas_distortion");
+  const image = document.querySelector("[distorted-image]");
 
-    if (!this.container || !this.canvas || !this.images.length) return;
+  if (!container || !canvas || !image) return;
 
-    this.scene = new THREE.Scene();
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 10);
-    this.camera.position.z = 1;
+  // Scene + Renderer
+  const scene = new THREE.Scene();
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
-      alpha: true,
-      antialias: true,
-    });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  scene.add(camera);
 
-    this.viewport = {
-      width: window.innerWidth,
-      height: window.innerHeight,
-      aspectRatio: window.innerWidth / window.innerHeight,
-    };
+  // Load image as texture
+  const textureLoader = new THREE.TextureLoader();
+  const texture = textureLoader.load(image.src, () => {
+    fitImage();
+  });
 
-    this.mouse = new THREE.Vector2(0, 0);
-    this.targetSize = { width: 288, height: 250 };
+  // Custom shader
+  const uniforms = {
+    uTexture: { value: texture },
+    uTime: { value: 0.0 },
+    uResolution: { value: new THREE.Vector2(container.clientWidth, container.clientHeight) },
+    uImageResolution: { value: new THREE.Vector2(1, 1) },
+  };
 
-    this.items = [];
-    this.textures = [];
-    this.currentItem = null;
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uTexture;
+      uniform float uTime;
+      uniform vec2 uResolution;
+      uniform vec2 uImageResolution;
+      varying vec2 vUv;
 
-    this.clock = new THREE.Clock();
-    this.uniforms = {
-      uTime: { value: 0 },
-      uTexture: { value: null },
-    };
+      void main() {
+        // keep aspect ratio
+        vec2 uv = vUv;
+        vec2 scale = min(uResolution / uImageResolution, vec2(1.0));
+        uv = (uv - 0.5) * scale + 0.5;
 
-    this.init();
+        // distortion (subtle)
+        uv.x += 0.015 * sin(uv.y * 10.0 + uTime * 0.8);
+        uv.y += 0.015 * cos(uv.x * 10.0 + uTime * 0.8);
+
+        vec4 tex = texture2D(uTexture, uv);
+        gl_FragColor = tex;
+      }
+    `
+  });
+
+  const geometry = new THREE.PlaneGeometry(2, 2);
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
+
+  // Resize handling
+  function fitImage() {
+    if (!texture.image) return;
+    uniforms.uImageResolution.value.set(texture.image.width, texture.image.height);
+    uniforms.uResolution.value.set(container.clientWidth, container.clientHeight);
+    renderer.setSize(container.clientWidth, container.clientHeight);
   }
 
-  init() {
-    this.loadTextures();
-    this.createPlane();
-    this.addEventListeners();
-    this.animate();
+  window.addEventListener("resize", fitImage);
+
+  // Animation loop
+  function animate() {
+    uniforms.uTime.value += 0.02;
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
   }
-
-  loadTextures() {
-    const loader = new THREE.TextureLoader();
-    this.images.forEach((img, index) => {
-      const texture = loader.load(img.src);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      this.items.push({ img, texture });
-    });
-  }
-
-  createPlane() {
-    const geometry = new THREE.PlaneGeometry(2, 2, 1, 1);
-    const material = new THREE.ShaderMaterial({
-      uniforms: this.uniforms,
-      vertexShader: `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        varying vec2 vUv;
-        uniform sampler2D uTexture;
-        void main() {
-          vec4 color = texture2D(uTexture, vUv);
-          gl_FragColor = color;
-        }
-      `,
-      transparent: true,
-    });
-
-    this.plane = new THREE.Mesh(geometry, material);
-    this.scene.add(this.plane);
-
-    // force fixed pixel size
-    this.updatePlaneSize();
-  }
-
-  updatePlaneSize() {
-    const { width, height } = this.targetSize;
-    const worldHeight =
-      2 * Math.tan((this.camera.fov * Math.PI) / 360) *
-      Math.abs(this.camera.position.z);
-    const worldWidth = worldHeight * this.viewport.aspectRatio;
-
-    // Convert px → world units
-    const planeScaleX = (width / this.viewport.width) * worldWidth;
-    const planeScaleY = (height / this.viewport.height) * worldHeight;
-
-    this.plane.scale.set(planeScaleX, planeScaleY, 1);
-  }
-
-  addEventListeners() {
-    window.addEventListener("mousemove", (e) => {
-      // map px → world coords
-      this.mouse.x = (e.clientX / this.viewport.width) * 2 - 1;
-      this.mouse.y = -(e.clientY / this.viewport.height) * 2 + 1;
-
-      const worldX = (e.clientX / this.viewport.width) * 2 - 1;
-      const worldY = -(e.clientY / this.viewport.height) * 2 + 1;
-
-      this.plane.position.set(worldX, worldY, 0);
-    });
-
-    window.addEventListener("resize", () => {
-      this.viewport.width = window.innerWidth;
-      this.viewport.height = window.innerHeight;
-      this.viewport.aspectRatio =
-        this.viewport.width / this.viewport.height;
-
-      this.renderer.setSize(this.viewport.width, this.viewport.height);
-      this.updatePlaneSize();
-    });
-  }
-
-  onTargetChange(index) {
-    this.currentItem = this.items[index];
-    if (!this.currentItem.texture) return;
-    this.uniforms.uTexture.value = this.currentItem.texture;
-  }
-
-  animate() {
-    requestAnimationFrame(() => this.animate());
-    this.uniforms.uTime.value = this.clock.getElapsedTime();
-    this.renderer.render(this.scene, this.camera);
-  }
+  animate();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  const distortion = new WebGLDistortion();
-});
+// Initialize when DOM ready
+document.addEventListener("DOMContentLoaded", initWebGLDistortion);
