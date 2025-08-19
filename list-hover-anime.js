@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 
-
 class EffectShell {
   constructor(container = document.body, itemsWrapper = null) {
     this.container = container;
