@@ -1,12 +1,11 @@
-import * as THREE from "three";
+import * as THREE from 'three';
 
 
 class EffectShell {
-  constructor(container, itemsWrapper) {
+  constructor(container = document.body, itemsWrapper = null) {
     this.container = container;
     this.itemsWrapper = itemsWrapper;
     if (!this.container || !this.itemsWrapper) return;
-
     this.setup();
     this.initEffectShell().then(() => {
       this.isLoaded = true;
@@ -17,8 +16,7 @@ class EffectShell {
   }
 
   setup() {
-    window.addEventListener("resize", this.onWindowResize.bind(this), false);
-
+    window.addEventListener('resize', this.onWindowResize.bind(this), false);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setSize(this.viewport.width, this.viewport.height);
     this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -32,12 +30,10 @@ class EffectShell {
       100
     );
     this.camera.position.set(0, 0, 3);
-
     this.mouse = new THREE.Vector2();
     this.timeSpeed = 2;
     this.time = 0;
     this.clock = new THREE.Clock();
-
     this.renderer.setAnimationLoop(this.render.bind(this));
   }
 
@@ -47,14 +43,17 @@ class EffectShell {
   }
 
   initEffectShell() {
+    let promises = [];
+    this.items = this.itemsElements;
     const loader = new THREE.TextureLoader();
-    const promises = this.itemsElements.map((item, index) =>
-      this.loadTexture(loader, item.img ? item.img.src : null, index)
-    );
-
-    return Promise.all(promises).then((results) => {
-      results.forEach((res, i) => {
-        this.items[i].texture = res.texture;
+    this.items.forEach((item, index) => {
+      promises.push(
+        this.loadTexture(loader, item.img ? item.img.src : null, index)
+      );
+    });
+    return Promise.all(promises).then(promises => {
+      promises.forEach((p, i) => {
+        this.items[i].texture = p.texture;
       });
     });
   }
@@ -62,19 +61,18 @@ class EffectShell {
   createEventsListeners() {
     this.items.forEach((item, index) => {
       item.element.addEventListener(
-        "mouseover",
+        'mouseover',
         this._onMouseOver.bind(this, index),
         false
       );
     });
-
     this.container.addEventListener(
-      "mousemove",
+      'mousemove',
       this._onMouseMove.bind(this),
       false
     );
     this.itemsWrapper.addEventListener(
-      "mouseleave",
+      'mouseleave',
       this._onMouseLeave.bind(this),
       false
     );
@@ -84,13 +82,11 @@ class EffectShell {
     this.isMouseOver = false;
     this.onMouseLeave(e);
   }
-
   _onMouseMove(e) {
     this.mouse.x = (e.clientX / this.viewport.width) * 2 - 1;
     this.mouse.y = -(e.clientY / this.viewport.height) * 2 + 1;
     this.onMouseMove(e);
   }
-
   _onMouseOver(i, e) {
     this.tempItemIndex = i;
     this.onMouseOver(i, e);
@@ -103,29 +99,20 @@ class EffectShell {
   }
 
   get viewport() {
-    const w = this.container.clientWidth;
-    const h = this.container.clientHeight;
+    let w = this.container.clientWidth,
+      h = this.container.clientHeight;
     return { width: w, height: h, aspectRatio: w / h };
-  }
-
-  get viewSize() {
-    const dist = this.camera.position.z;
-    const vFov = (this.camera.fov * Math.PI) / 180;
-    const height = 2 * Math.tan(vFov / 2) * dist;
-    const width = height * this.viewport.aspectRatio;
-    return { width, height, vFov };
   }
 
   get itemsElements() {
     const items = [
-      ...this.itemsWrapper.querySelectorAll(".portfolio20_item-link"),
+      ...this.itemsWrapper.querySelectorAll('.portfolio20_item-link')
     ];
-    this.items = items.map((item, index) => ({
+    return items.map((item, index) => ({
       element: item,
-      img: item.querySelector(".portfolio20_image") || null,
-      index,
+      img: item.querySelector('.portfolio20_image') || null,
+      index
     }));
-    return this.items;
   }
 
   loadTexture(loader, url, index) {
@@ -136,14 +123,18 @@ class EffectShell {
       }
       loader.load(
         url,
-        (tex) => resolve({ texture: tex, index }),
+        tex => {
+          tex.minFilter = THREE.LinearFilter;
+          tex.generateMipmaps = false;
+          tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+          resolve({ texture: tex, index });
+        },
         undefined,
-        (err) => reject(err)
+        err => reject(err)
       );
     });
   }
 
-  // placeholders
   onMouseEnter() {}
   onMouseLeave() {}
   onMouseMove() {}
@@ -154,22 +145,20 @@ class RGBShiftEffect extends EffectShell {
   constructor(container, itemsWrapper, options = {}) {
     super(container, itemsWrapper);
     if (!this.container || !this.itemsWrapper) return;
-    this.options = { strength: options.strength || 0.25 };
+    options.strength = options.strength || 0.25;
+    this.options = options;
     this.init();
   }
 
   init() {
     this.position = new THREE.Vector3(0, 0, 0);
     this.scale = new THREE.Vector3(1, 1, 1);
-
     this.geometry = new THREE.PlaneGeometry(1, 1, 32, 32);
-
     this.uniforms = {
       uTexture: { value: null },
       uOffset: { value: new THREE.Vector2(0, 0) },
-      uAlpha: { value: 0 },
+      uAlpha: { value: 0 }
     };
-
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
       vertexShader: `
@@ -200,9 +189,8 @@ class RGBShiftEffect extends EffectShell {
           vec3 color = rgbShift(uTexture, vUv, uOffset);
           gl_FragColor = vec4(color, uAlpha);
         }`,
-      transparent: true,
+      transparent: true
     });
-
     this.plane = new THREE.Mesh(this.geometry, this.material);
     this.scene.add(this.plane);
   }
@@ -213,7 +201,7 @@ class RGBShiftEffect extends EffectShell {
       gsap.to(this.uniforms.uAlpha, {
         value: 1,
         duration: 0.5,
-        ease: "power4.out",
+        ease: 'power4.out'
       });
     }
   }
@@ -222,42 +210,32 @@ class RGBShiftEffect extends EffectShell {
     gsap.to(this.uniforms.uAlpha, {
       value: 0,
       duration: 0.5,
-      ease: "power4.out",
+      ease: 'power4.out'
     });
   }
 
   onMouseMove() {
-    const mapRange = (v, a, b, c, d) =>
-      c + ((v - a) * (d - c)) / (b - a);
+    // project mouse into world space
+    const vec = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5);
+    vec.unproject(this.camera);
 
-    const x = mapRange(
-      this.mouse.x,
-      -1,
-      1,
-      -this.viewSize.width / 2,
-      this.viewSize.width / 2
-    );
-    const y = mapRange(
-      this.mouse.y,
-      -1,
-      1,
-      -this.viewSize.height / 2,
-      this.viewSize.height / 2
-    );
+    const dir = vec.sub(this.camera.position).normalize();
+    const distance = -this.camera.position.z / dir.z;
+    const pos = this.camera.position.clone().add(dir.multiplyScalar(distance));
 
-    this.position.set(x, y, 0);
+    this.position.copy(pos);
 
     gsap.to(this.plane.position, {
-      x,
-      y,
-      duration: 1,
-      ease: "power4.out",
-      onUpdate: this.onPositionUpdate.bind(this),
+      x: pos.x,
+      y: pos.y,
+      duration: 0.4,
+      ease: 'power4.out',
+      onUpdate: this.onPositionUpdate.bind(this)
     });
   }
 
   onPositionUpdate() {
-    const offset = this.plane.position
+    let offset = this.plane.position
       .clone()
       .sub(this.position)
       .multiplyScalar(-this.options.strength);
@@ -275,16 +253,27 @@ class RGBShiftEffect extends EffectShell {
     this.currentItem = this.items[index];
     if (!this.currentItem.texture) return;
 
-    const ratio =
-      this.currentItem.img.naturalWidth /
-      this.currentItem.img.naturalHeight;
+    // cover scaling
+    let img = this.currentItem.img;
+    let tex = this.currentItem.texture;
 
-    this.scale.set(ratio, 1, 1);
-    this.uniforms.uTexture.value = this.currentItem.texture;
-    this.plane.scale.copy(this.scale);
+    let iw = img.naturalWidth;
+    let ih = img.naturalHeight;
+    let containerAspect = this.viewport.width / this.viewport.height;
+    let imageAspect = iw / ih;
+
+    let scaleX = 1, scaleY = 1;
+    if (imageAspect > containerAspect) {
+      scaleX = imageAspect / containerAspect;
+    } else {
+      scaleY = containerAspect / imageAspect;
+    }
+
+    this.plane.scale.set(scaleX, scaleY, 1);
+    this.uniforms.uTexture.value = tex;
   }
 }
 
 // init
-const wrapper = document.querySelector(".portfolio20_list");
+const wrapper = document.querySelector('.portfolio20_list');
 new RGBShiftEffect(wrapper, wrapper, { strength: 0.3 });
