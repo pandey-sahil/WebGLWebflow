@@ -155,6 +155,21 @@ class EffectShell {
     this.plane.scale.set(scaleX, scaleY, 1);
   }
 
+  // helper to get world position of a DOM element
+  getWorldPositionFromDOM(element) {
+    const rect = element.getBoundingClientRect();
+
+    const x = (rect.left + rect.width / 2) / this.viewport.width * 2 - 1;
+    const y = -((rect.top + rect.height / 2) / this.viewport.height * 2 - 1);
+
+    const vec = new THREE.Vector3(x, y, 0.5);
+    vec.unproject(this.camera);
+
+    const dir = vec.sub(this.camera.position).normalize();
+    const distance = -this.camera.position.z / dir.z;
+    return this.camera.position.clone().add(dir.multiplyScalar(distance));
+  }
+
   onMouseEnter() {}
   onMouseLeave() {}
   onMouseMove() {}
@@ -176,10 +191,10 @@ class RGBShiftEffect extends EffectShell {
     this.geometry = new THREE.PlaneGeometry(1, 1, 32, 32);
     this.uniforms = {
       uTexture:   { value: null },
-      uOffset:    { value: new THREE.Vector2(0, 0) }, // rgb shift offset
+      uOffset:    { value: new THREE.Vector2(0, 0) },
       uAlpha:     { value: 0 },
-      uUVScale:   { value: new THREE.Vector2(1, 1) }, // cover scale in UV
-      uUVOffset:  { value: new THREE.Vector2(0, 0) }  // cover offset in UV
+      uUVScale:   { value: new THREE.Vector2(1, 1) },
+      uUVOffset:  { value: new THREE.Vector2(0, 0) }
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
@@ -206,14 +221,12 @@ class RGBShiftEffect extends EffectShell {
         varying vec2 vUv;
 
         vec3 rgbShift(sampler2D tex, vec2 baseUV, vec2 offset) {
-          // Apply small offset only to R channel for the shift
           float r = texture2D(tex, baseUV + offset).r;
           vec2 gb = texture2D(tex, baseUV).gb;
           return vec3(r, gb);
         }
 
         void main() {
-          // Cover transform in UV space (keeps plane size fixed)
           vec2 baseUV = vUv * uUVScale + uUVOffset;
           vec3 color = rgbShift(uTexture, baseUV, uOffset);
           gl_FragColor = vec4(color, uAlpha);
@@ -247,7 +260,7 @@ class RGBShiftEffect extends EffectShell {
   }
 
   onMouseMove() {
-    // project mouse into world space
+    // Optional: if you want parallax after snapping
     const vec = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5);
     vec.unproject(this.camera);
 
@@ -288,10 +301,20 @@ class RGBShiftEffect extends EffectShell {
     const img = this.currentItem.img;
     const tex = this.currentItem.texture;
 
-    // lock plane to 288x250 (no extra scaling for cover)
+    // lock plane to 288x250
     this.applyPlanePixelSize(this.targetSize.w, this.targetSize.h);
 
-    // --- COVER in UV space (center-crop) ---
+    // animate plane position to DOM element
+    const targetPos = this.getWorldPositionFromDOM(this.currentItem.element);
+    gsap.to(this.plane.position, {
+      x: targetPos.x,
+      y: targetPos.y,
+      duration: 0.6,
+      ease: "power4.out",
+      onUpdate: this.onPositionUpdate.bind(this)
+    });
+
+    // ---- COVER in UV space ----
     const iw = img.naturalWidth;
     const ih = img.naturalHeight;
     const imageAspect = iw / ih;
@@ -301,21 +324,11 @@ class RGBShiftEffect extends EffectShell {
     let uvOffsetX = 0.0, uvOffsetY = 0.0;
 
     if (imageAspect > targetAspect) {
-      // Image is wider -> crop width
-      uvScaleX = targetAspect / imageAspect; // < 1
-      uvScaleY = 1.0;
-      uvOffsetX = (1.0 - uvScaleX) * 0.5;   // center
-      uvOffsetY = 0.0;
+      uvScaleX = targetAspect / imageAspect;
+      uvOffsetX = (1.0 - uvScaleX) * 0.5;
     } else if (imageAspect < targetAspect) {
-      // Image is taller -> crop height
-      uvScaleX = 1.0;
-      uvScaleY = imageAspect / targetAspect; // < 1
-      uvOffsetX = 0.0;
-      uvOffsetY = (1.0 - uvScaleY) * 0.5;    // center
-    } else {
-      // Same aspect
-      uvScaleX = 1.0; uvScaleY = 1.0;
-      uvOffsetX = 0.0; uvOffsetY = 0.0;
+      uvScaleY = imageAspect / targetAspect;
+      uvOffsetY = (1.0 - uvScaleY) * 0.5;
     }
 
     this.uniforms.uUVScale.value.set(uvScaleX, uvScaleY);
