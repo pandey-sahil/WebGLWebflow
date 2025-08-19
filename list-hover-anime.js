@@ -21,12 +21,34 @@ void main(){
 
 const fragmentShader = `
 uniform sampler2D uTexture;
+uniform sampler2D uPrevTexture;
 uniform float uAlpha;
+uniform float uMixFactor;  // controls crossfade
+uniform vec2 uRGBOffset;
 varying vec2 vUv;
 
 void main(){
-    vec3 color = texture2D(uTexture, vUv).rgb;
-    gl_FragColor = vec4(color, uAlpha);
+    // RGB split sampling
+    vec2 rUV = vUv + uRGBOffset * 0.005;
+    vec2 gUV = vUv;
+    vec2 bUV = vUv - uRGBOffset * 0.005;
+
+    vec3 newColor = vec3(
+        texture2D(uTexture, rUV).r,
+        texture2D(uTexture, gUV).g,
+        texture2D(uTexture, bUV).b
+    );
+
+    vec3 prevColor = vec3(
+        texture2D(uPrevTexture, rUV).r,
+        texture2D(uPrevTexture, gUV).g,
+        texture2D(uPrevTexture, bUV).b
+    );
+
+    // crossfade between previous and new texture
+    vec3 finalColor = mix(prevColor, newColor, uMixFactor);
+
+    gl_FragColor = vec4(finalColor, uAlpha);
 }
 `;
 
@@ -44,15 +66,21 @@ class WebGL {
         this.scene = new THREE.Scene();
         this.perspective = 1000;
         this.offset = new THREE.Vector2(0, 0);
+        this.currentIndex = -1;
+        this.transitioning = false;
+
         this.uniforms = {
             uTexture: { value: null },
+            uPrevTexture: { value: null },
             uAlpha: { value: 0.0 },
-            uOffset: { value: new THREE.Vector2(0.0, 0.0) }
+            uOffset: { value: new THREE.Vector2(0.0, 0.0) },
+            uMixFactor: { value: 1.0 },
+            uRGBOffset: { value: new THREE.Vector2(0.0, 0.0) }
         };
 
-        // Load textures from attribute images
+        // Load textures
         this.textures = this.links.map(link => {
-            const img = link.querySelector('[webgl-anime="image-src"]'); // ✅ fixed
+            const img = link.querySelector('[webgl-anime="image-src"]');
             if (!img) return null;
             const tex = new THREE.TextureLoader().load(img.src);
             tex.minFilter = THREE.LinearFilter;
@@ -61,20 +89,7 @@ class WebGL {
         });
 
         this.links.forEach((link, idx) => {
-            link.addEventListener('mouseenter', () => {
-                if (!this.textures[idx]) return;
-                this.uniforms.uTexture.value = this.textures[idx];
-                this.uniforms.uAlpha.value = 1.0;
-
-                // Scale mesh based on image aspect ratio
-                const img = link.querySelector('[webgl-anime="image-src"]');
-                if (img) {
-                    const aspect = img.naturalWidth / img.naturalHeight;
-                    const baseSize = 300; // control size
-                    this.mesh.scale.set(baseSize * aspect, baseSize, 1);
-                }
-            });
-
+            link.addEventListener('mouseenter', () => this.showImage(idx, link));
             link.addEventListener('mouseleave', () => {
                 this.uniforms.uAlpha.value = 0.0;
             });
@@ -85,6 +100,27 @@ class WebGL {
         this.onMouseMove();
         this.createMesh();
         this.render();
+    }
+
+    showImage(idx, link) {
+        if (!this.textures[idx]) return;
+
+        // set previous texture for crossfade
+        this.uniforms.uPrevTexture.value = this.uniforms.uTexture.value;
+        this.uniforms.uTexture.value = this.textures[idx];
+        this.uniforms.uAlpha.value = 1.0;
+        this.uniforms.uMixFactor.value = 0.0; // start transition
+
+        this.currentIndex = idx;
+        this.transitioning = true;
+
+        // Scale mesh based on image aspect ratio
+        const img = link.querySelector('[webgl-anime="image-src"]');
+        if (img) {
+            const aspect = img.naturalWidth / img.naturalHeight;
+            const baseSize = 300;
+            this.mesh.scale.set(baseSize * aspect, baseSize, 1);
+        }
     }
 
     get viewport() {
@@ -109,8 +145,8 @@ class WebGL {
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(this.viewport.width, this.viewport.height);
         this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.domElement.classList.add("list-webgl-canvas"); // css class
-        this.renderer.domElement.style.position = 'fixed';
+        this.renderer.domElement.classList.add("list-webgl-canvas");
+        this.renderer.domElement.style.position = 'sticky';
         this.renderer.domElement.style.top = 0;
         this.renderer.domElement.style.left = 0;
         this.container.appendChild(this.renderer.domElement);
@@ -150,6 +186,21 @@ class WebGL {
             (targetX - this.offset.x) * 0.0005,
             -(targetY - this.offset.y) * 0.0005
         );
+
+        // RGB split subtle movement
+        this.uniforms.uRGBOffset.value.set(
+            Math.sin(Date.now() * 0.002) * 0.5,
+            Math.cos(Date.now() * 0.002) * 0.5
+        );
+
+        // Smooth crossfade transition
+        if (this.transitioning && this.uniforms.uMixFactor.value < 1.0) {
+            this.uniforms.uMixFactor.value += 0.05; // speed of transition
+            if (this.uniforms.uMixFactor.value >= 1.0) {
+                this.transitioning = false;
+                this.uniforms.uPrevTexture.value = null;
+            }
+        }
 
         // Position so image follows mouse naturally
         this.mesh.position.set(
