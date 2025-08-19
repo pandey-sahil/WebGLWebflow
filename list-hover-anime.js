@@ -203,18 +203,10 @@ class RGBShiftEffect extends EffectShell {
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
       vertexShader: `
-        uniform vec2 uOffset;
         varying vec2 vUv;
-        vec3 deformationCurve(vec3 pos, vec2 uv, vec2 offset) {
-          float M_PI = 3.141592653589793;
-          pos.x += (sin(uv.y * M_PI) * offset.x);
-          pos.y += (sin(uv.x * M_PI) * offset.y);
-          return pos;
-        }
         void main() {
           vUv = uv;
-          vec3 newPos = deformationCurve(position, uv, uOffset);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }`,
       fragmentShader: `
         uniform sampler2D uTexture;
