@@ -259,19 +259,19 @@ class RGBShiftEffect extends EffectShell {
     });
   }
 
-  onMouseMove() {
+  onMouseMove(e) {
     if (!this.currentItem) return;
     
-    // Convert mouse position to world coordinates
+    // Convert mouse pixel position directly to world coordinates
     const distance = Math.abs(this.camera.position.z);
     const worldHeight = 2 * Math.tan((this.camera.fov * Math.PI) / 360) * distance;
     const worldWidth = worldHeight * this.viewport.aspectRatio;
     
-    // Calculate world position based on mouse
-    const worldX = (this.mouse.x * worldWidth) / 2;
-    const worldY = (this.mouse.y * worldHeight) / 2;
+    // Use actual mouse pixel coordinates
+    const mouseX = (e.clientX / this.viewport.width) * 2 - 1;
+    const worldX = (mouseX * worldWidth) / 2;
     
-    this.position.set(worldX, worldY, 0);
+    this.position.set(worldX, this.plane.position.y, 0);
 
     gsap.to(this.plane.position, {
       x: worldX,
