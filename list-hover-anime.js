@@ -88,9 +88,13 @@ class EffectShell {
     this.onMouseLeave(e);
   }
   _onMouseMove(e) {
-    this.mouse.x = (e.clientX / this.viewport.width) * 2 - 1;
-    this.mouse.y = -(e.clientY / this.viewport.height) * 2 + 1;
-    this.onMouseMove(e);
+    const rect = this.container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    this.mouse.x = (x / this.viewport.width) * 2 - 1;
+    this.mouse.y = -(y / this.viewport.height) * 2 + 1;
+    this.onMouseMove(e, x, y);
   }
   _onMouseOver(i, e) {
     this.tempItemIndex = i;
