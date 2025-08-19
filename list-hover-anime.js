@@ -123,32 +123,42 @@ class WebGL {
         }
     }
 
-    get viewport() {
-        return {
-            width: window.innerWidth,
-            height: window.innerHeight,
-            aspectRatio: window.innerWidth / window.innerHeight
-        };
-    }
+get viewport() {
+    const bounds = this.container.getBoundingClientRect();
+    return {
+        width: bounds.width,
+        height: bounds.height,
+        aspectRatio: bounds.width / bounds.height
+    };
+}
 
     addEventListeners() {
         window.addEventListener('mouseenter', () => this.linkHovered = true);
         window.addEventListener('mouseleave', () => this.linkHovered = false);
     }
 
-    setUpCamera() {
-        window.addEventListener('resize', this.onWindowResize.bind(this));
-        const fov = (180 * (2 * Math.atan(this.viewport.height / 2 / this.perspective))) / Math.PI;
-        this.camera = new THREE.PerspectiveCamera(fov, this.viewport.aspectRatio, 0.1, 1000);
-        this.camera.position.set(0, 0, this.perspective);
+setUpCamera() {
+    // measure wrapper size instead of window
+    const bounds = this.container.getBoundingClientRect();
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        this.renderer.setSize(this.viewport.width, this.viewport.height);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.domElement.classList.add("list-webgl-canvas");
- 
-        this.container.appendChild(this.renderer.domElement);
-    }
+    // calculate perspective from wrapper height
+    this.perspective = 800; // keep your original perspective depth
+    const fov = (180 * (2 * Math.atan(bounds.height / 2 / this.perspective))) / Math.PI;
+
+    // create camera
+    this.camera = new THREE.PerspectiveCamera(fov, bounds.width / bounds.height, 0.1, 1000);
+    this.camera.position.set(0, 0, this.perspective);
+
+    // create renderer
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer.setSize(bounds.width, bounds.height);
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+
+
+    // append canvas
+    this.container.appendChild(this.renderer.domElement);
+}
+
 
     createMesh() {
         this.geometry = new THREE.PlaneGeometry(1, 1, 20, 20);
@@ -162,12 +172,14 @@ class WebGL {
         this.scene.add(this.mesh);
     }
 
-    onWindowResize() {
-        this.camera.aspect = this.viewport.aspectRatio;
-        this.camera.fov = (180 * (2 * Math.atan(this.viewport.height / 2 / this.perspective))) / Math.PI;
-        this.renderer.setSize(this.viewport.width, this.viewport.height);
-        this.camera.updateProjectionMatrix();
-    }
+  onWindowResize() {
+    const vp = this.viewport;
+    this.camera.aspect = vp.aspectRatio;
+    this.camera.fov = (180 * (2 * Math.atan(vp.height / 2 / this.perspective))) / Math.PI;
+    this.renderer.setSize(vp.width, vp.height);
+    this.camera.updateProjectionMatrix();
+}
+
 
     onMouseMove() {
         window.addEventListener('mousemove', (e) => {
