@@ -249,28 +249,38 @@ class RGBShiftEffect extends EffectShell {
   }
 
   onTargetChange(index) {
-    this.currentItem = this.items[index];
-    if (!this.currentItem.texture) return;
+  this.currentItem = this.items[index];
+  if (!this.currentItem.texture) return;
 
-    // cover scaling
-    let img = this.currentItem.img;
-    let tex = this.currentItem.texture;
+  let imgWrapper = this.currentItem.img.closest(".portfolio20_image-wrapper");
+  let rect = imgWrapper.getBoundingClientRect();
 
-    let iw = img.naturalWidth;
-    let ih = img.naturalHeight;
-    let containerAspect = this.viewport.width / this.viewport.height;
-    let imageAspect = iw / ih;
+  let iw = this.currentItem.img.naturalWidth;
+  let ih = this.currentItem.img.naturalHeight;
+  let imageAspect = iw / ih;
+  let wrapperAspect = rect.width / rect.height;
 
-    let scaleX = 1, scaleY = 1;
-    if (imageAspect > containerAspect) {
-      scaleX = imageAspect / containerAspect;
-    } else {
-      scaleY = containerAspect / imageAspect;
-    }
-
-    this.plane.scale.set(scaleX, scaleY, 1);
-    this.uniforms.uTexture.value = tex;
+  let scaleX = 1, scaleY = 1;
+  if (imageAspect > wrapperAspect) {
+    scaleX = imageAspect / wrapperAspect;
+  } else {
+    scaleY = wrapperAspect / imageAspect;
   }
+
+  // convert DOM pixels into normalized plane units
+  let planeHeight = (rect.height / window.innerHeight) * 2; // NDC space
+  let planeWidth = (rect.width / window.innerWidth) * 2;
+
+  this.plane.scale.set(planeWidth * scaleX, planeHeight * scaleY, 1);
+
+  // position plane over wrapper center
+  let x = (rect.left + rect.width / 2) / window.innerWidth * 2 - 1;
+  let y = -((rect.top + rect.height / 2) / window.innerHeight * 2 - 1);
+  this.plane.position.set(x, y, 0);
+
+  this.uniforms.uTexture.value = this.currentItem.texture;
+}
+
 }
 
 // init
