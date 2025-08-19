@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import gsap from "gsap";
+
 
 class EffectShell {
   constructor(container, itemsWrapper) {
