@@ -1,3 +1,25 @@
+// Settings Array - Control everything from here
+const SETTINGS = {
+    deformation: {
+        strength: 0.00055,  // Increased by 10% from 0.0005
+        smoothing: 0.1
+    },
+    transition: {
+        speed: 0.05,
+        fadeInSpeed: 0.08,
+        fadeOutSpeed: 0.06
+    },
+    effects: {
+        rgbSplit: 0.005,
+        rgbAnimation: 0.5,
+        rgbSpeed: 0.002
+    },
+    mesh: {
+        baseSize: 300,
+        segments: 20
+    }
+};
+
 import * as THREE from 'three';
  
 const vertexShader = `
@@ -28,10 +50,10 @@ uniform vec2 uRGBOffset;
 varying vec2 vUv;
 
 void main(){
-    // RGB split sampling
-    vec2 rUV = vUv + uRGBOffset * 0.005;
+    // RGB split sampling with enhanced effect during deformation
+    vec2 rUV = vUv + uRGBOffset;
     vec2 gUV = vUv;
-    vec2 bUV = vUv - uRGBOffset * 0.005;
+    vec2 bUV = vUv - uRGBOffset;
 
     vec3 newColor = vec3(
         texture2D(uTexture, rUV).r,
@@ -51,6 +73,7 @@ void main(){
     gl_FragColor = vec4(finalColor, uAlpha);
 }
 `;
+
 function lerp(start, end, t) {
     return start * (1.0 - t) + end * t;
 }
@@ -90,7 +113,8 @@ class WebGL {
         this.links.forEach((link, idx) => {
             link.addEventListener('mouseenter', () => this.showImage(idx, link));
             link.addEventListener('mouseleave', () => {
-                this.uniforms.uAlpha.value = 0.0;
+                // Smooth fade out
+                this.fadeOut();
             });
         });
 
@@ -111,14 +135,18 @@ class WebGL {
 
         this.currentIndex = idx;
         this.transitioning = true;
+        this.fadingOut = false;
 
         // Scale mesh based on image aspect ratio
         const img = link.querySelector('[webgl-anime="image-src"]');
         if (img) {
             const aspect = img.naturalWidth / img.naturalHeight;
-            const baseSize = 300;
-            this.mesh.scale.set(baseSize * aspect, baseSize, 1);
+            this.mesh.scale.set(SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize, 1);
         }
+    }
+
+    fadeOut() {
+        this.fadingOut = true;
     }
 
     get viewport() {
@@ -151,7 +179,7 @@ class WebGL {
     }
 
     createMesh() {
-        this.geometry = new THREE.PlaneGeometry(1, 1, 20, 20);
+        this.geometry = new THREE.PlaneGeometry(1, 1, SETTINGS.mesh.segments, SETTINGS.mesh.segments);
         this.material = new THREE.ShaderMaterial({
             uniforms: this.uniforms,
             vertexShader,
@@ -179,26 +207,39 @@ class WebGL {
     }
 
     render() {
-        this.offset.x = lerp(this.offset.x, targetX, 0.1);
-        this.offset.y = lerp(this.offset.y, targetY, 0.1);
+        this.offset.x = lerp(this.offset.x, targetX, SETTINGS.deformation.smoothing);
+        this.offset.y = lerp(this.offset.y, targetY, SETTINGS.deformation.smoothing);
 
+        // Enhanced deformation strength (10% increase)
         this.uniforms.uOffset.value.set(
-            (targetX - this.offset.x) * 0.0005,
-            -(targetY - this.offset.y) * 0.0005
+            (targetX - this.offset.x) * SETTINGS.deformation.strength,
+            -(targetY - this.offset.y) * SETTINGS.deformation.strength
         );
 
-        // RGB subtle animation
+        // Enhanced RGB split with deformation correlation
+        const deformationIntensity = Math.abs(targetX - this.offset.x) + Math.abs(targetY - this.offset.y);
+        const rgbIntensity = (deformationIntensity * 0.00001) + (Math.sin(Date.now() * SETTINGS.effects.rgbSpeed) * SETTINGS.effects.rgbAnimation);
+        
         this.uniforms.uRGBOffset.value.set(
-            Math.sin(Date.now() * 0.002) * 0.5,
-            Math.cos(Date.now() * 0.002) * 0.5
+            rgbIntensity * SETTINGS.effects.rgbSplit,
+            Math.cos(Date.now() * SETTINGS.effects.rgbSpeed) * SETTINGS.effects.rgbAnimation * SETTINGS.effects.rgbSplit
         );
 
-        // Crossfade
+        // Smooth transition handling
         if (this.transitioning && this.uniforms.uMixFactor.value < 1.0) {
-            this.uniforms.uMixFactor.value += 0.05;
+            this.uniforms.uMixFactor.value += SETTINGS.transition.speed;
             if (this.uniforms.uMixFactor.value >= 1.0) {
                 this.transitioning = false;
                 this.uniforms.uPrevTexture.value = null;
+            }
+        }
+
+        // Fade out handling
+        if (this.fadingOut && this.uniforms.uAlpha.value > 0.0) {
+            this.uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
+            if (this.uniforms.uAlpha.value <= 0.0) {
+                this.uniforms.uAlpha.value = 0.0;
+                this.fadingOut = false;
             }
         }
 
