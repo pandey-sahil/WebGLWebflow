@@ -30,7 +30,7 @@ void main(){
 }
 `;
 
-function lerp(start, end, t){
+function lerp(start, end, t) {
     return start * (1.0 - t) + end * t;
 }
 
@@ -52,7 +52,8 @@ class WebGL {
 
         // Load textures from attribute images
         this.textures = this.links.map(link => {
-            const img = link.querySelector('[webgl-anime="image-src"] img');
+            const img = link.querySelector('[webgl-anime="image-src"]'); // ✅ fixed
+            if (!img) return null;
             const tex = new THREE.TextureLoader().load(img.src);
             tex.minFilter = THREE.LinearFilter;
             tex.generateMipmaps = false;
@@ -61,14 +62,17 @@ class WebGL {
 
         this.links.forEach((link, idx) => {
             link.addEventListener('mouseenter', () => {
+                if (!this.textures[idx]) return;
                 this.uniforms.uTexture.value = this.textures[idx];
                 this.uniforms.uAlpha.value = 1.0;
 
                 // Scale mesh based on image aspect ratio
-                const img = link.querySelector('[webgl-anime="image-src"] img');
-                const aspect = img.naturalWidth / img.naturalHeight;
-                const baseSize = 300; // control size
-                this.mesh.scale.set(baseSize * aspect, baseSize, 1);
+                const img = link.querySelector('[webgl-anime="image-src"]');
+                if (img) {
+                    const aspect = img.naturalWidth / img.naturalHeight;
+                    const baseSize = 300; // control size
+                    this.mesh.scale.set(baseSize * aspect, baseSize, 1);
+                }
             });
 
             link.addEventListener('mouseleave', () => {
