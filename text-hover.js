@@ -11,15 +11,15 @@ function initWebGLDistortion() {
     }
 
     const settings = {
-        falloff: 0.18,
+        falloff: 0.12,  // smaller circle falloff
         alpha: 0.97,
         dissipation: 0.965,
         distortionStrength: parseFloat(container.dataset.distortionStrength) || 0.08,
-        chromaticAberration: 0.004,
-        chromaticSpread: 1,
+        chromaticAberration: 0.002, // reduced flashes
+        chromaticSpread: 0.6,       // reduced spread
         velocityScale: 0.6,
         velocityDamping: 0.85,
-        mouseRadius: 0.18,
+        mouseRadius: 0.1,           // smaller ripple radius
         motionBlurStrength: 0.35,
         motionBlurDecay: 0.88,
         motionBlurThreshold: 0.5
@@ -43,12 +43,8 @@ function initWebGLDistortion() {
             vec4 color = texture2D(uTexture, uv);
             color.rgb *= uDissipation;
 
-            // Add wave movement
-            float waveX = sin(uv.y * 10.0 + uTime * 2.0) * 0.005;
-            float waveY = cos(uv.x * 10.0 + uTime * 1.5) * 0.005;
-            uv.x += waveX;
-            uv.y += waveY;
-            
+            // Removed idle wave effect
+
             vec2 cursor = uMouse;
             vec2 aspectUv = uv;
             aspectUv.x *= uAspect;
@@ -110,9 +106,7 @@ function initWebGLDistortion() {
         void main() {
             vec2 uv = vUv;
 
-            // Add idle wave movement
-            uv.x += sin(uv.y * 8.0 + uTime * 1.5) * 0.01;
-            uv.y += cos(uv.x * 8.0 + uTime * 1.2) * 0.01;
+            // Removed idle wave movement
 
             vec3 flow = texture2D(uFlowmap, uv).rgb;
             float flowMagnitude = length(flow.rg);
