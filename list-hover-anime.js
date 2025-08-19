@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 
-
 const vertexShader = `
 uniform vec2 uOffset;
 varying vec2 vUv;
@@ -39,9 +38,9 @@ let targetX = 0;
 let targetY = 0;
 
 class WebGL {
-    constructor() {
-        this.container = document.body;
-        this.links = [...document.querySelectorAll('.list-item')];
+    constructor(wrapper) {
+        this.container = wrapper;
+        this.links = [...wrapper.querySelectorAll('[webgl-anime="list-item"]')];
         this.scene = new THREE.Scene();
         this.perspective = 1000;
         this.offset = new THREE.Vector2(0, 0);
@@ -51,9 +50,9 @@ class WebGL {
             uOffset: { value: new THREE.Vector2(0.0, 0.0) }
         };
 
-        // Load textures
+        // Load textures from attribute images
         this.textures = this.links.map(link => {
-            const img = link.querySelector('.image-src img');
+            const img = link.querySelector('[webgl-anime="image-src"] img');
             const tex = new THREE.TextureLoader().load(img.src);
             tex.minFilter = THREE.LinearFilter;
             tex.generateMipmaps = false;
@@ -66,7 +65,7 @@ class WebGL {
                 this.uniforms.uAlpha.value = 1.0;
 
                 // Scale mesh based on image aspect ratio
-                const img = link.querySelector('.image-src img');
+                const img = link.querySelector('[webgl-anime="image-src"] img');
                 const aspect = img.naturalWidth / img.naturalHeight;
                 const baseSize = 300; // control size
                 this.mesh.scale.set(baseSize * aspect, baseSize, 1);
@@ -106,7 +105,7 @@ class WebGL {
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(this.viewport.width, this.viewport.height);
         this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.domElement.classList.add("webgl-canvas"); // give css class
+        this.renderer.domElement.classList.add("webgl-canvas"); // css class
         this.renderer.domElement.style.position = 'fixed';
         this.renderer.domElement.style.top = 0;
         this.renderer.domElement.style.left = 0;
@@ -155,13 +154,13 @@ class WebGL {
             0
         );
 
-        this.links.forEach(link => {
-            link.style.opacity = this.linkHovered ? 0.2 : 1;
-        });
-
         this.renderer.render(this.scene, this.camera);
         requestAnimationFrame(this.render.bind(this));
     }
 }
 
-new WebGL();
+// multiple wrappers support
+document.addEventListener("DOMContentLoaded", () => {
+    const wrappers = document.querySelectorAll('[webgl-anime="list-hover-wrapper"]');
+    wrappers.forEach(wrapper => new WebGL(wrapper));
+});
