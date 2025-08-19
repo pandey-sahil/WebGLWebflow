@@ -105,7 +105,7 @@ class WebGL {
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(this.viewport.width, this.viewport.height);
         this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.domElement.classList.add("webgl-canvas"); // css class
+        this.renderer.domElement.classList.add("list-webgl-canvas"); // css class
         this.renderer.domElement.style.position = 'fixed';
         this.renderer.domElement.style.top = 0;
         this.renderer.domElement.style.left = 0;
