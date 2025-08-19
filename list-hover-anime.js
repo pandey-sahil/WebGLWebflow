@@ -1,10 +1,16 @@
 import * as THREE from 'three';
 
+// Requires GSAP on the page (global `gsap`)
+
 class EffectShell {
   constructor(container = document.body, itemsWrapper = null) {
     this.container = container;
     this.itemsWrapper = itemsWrapper;
     if (!this.container || !this.itemsWrapper) return;
+
+    // target plane size in CSS pixels
+    this.targetSize = { w: 288, h: 250 };
+
     this.setup();
     this.initEffectShell().then(() => {
       this.isLoaded = true;
@@ -95,6 +101,9 @@ class EffectShell {
     this.camera.aspect = this.viewport.aspectRatio;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(this.viewport.width, this.viewport.height);
+
+    // keep plane locked to 288x250 on resize
+    if (this.plane) this.applyPlanePixelSize(this.targetSize.w, this.targetSize.h);
   }
 
   get viewport() {
@@ -134,6 +143,18 @@ class EffectShell {
     });
   }
 
+  // convert a pixel size to world scale and apply to plane (no extra cover scaling)
+  applyPlanePixelSize(pxW, pxH) {
+    const distance = Math.abs(this.camera.position.z); // plane at z=0
+    const worldHeight = 2 * Math.tan((this.camera.fov * Math.PI) / 360) * distance;
+    const worldWidth = worldHeight * this.viewport.aspectRatio;
+
+    const scaleX = (pxW / this.viewport.width) * worldWidth;
+    const scaleY = (pxH / this.viewport.height) * worldHeight;
+
+    this.plane.scale.set(scaleX, scaleY, 1);
+  }
+
   onMouseEnter() {}
   onMouseLeave() {}
   onMouseMove() {}
@@ -154,9 +175,11 @@ class RGBShiftEffect extends EffectShell {
     this.scale = new THREE.Vector3(1, 1, 1);
     this.geometry = new THREE.PlaneGeometry(1, 1, 32, 32);
     this.uniforms = {
-      uTexture: { value: null },
-      uOffset: { value: new THREE.Vector2(0, 0) },
-      uAlpha: { value: 0 }
+      uTexture:   { value: null },
+      uOffset:    { value: new THREE.Vector2(0, 0) }, // rgb shift offset
+      uAlpha:     { value: 0 },
+      uUVScale:   { value: new THREE.Vector2(1, 1) }, // cover scale in UV
+      uUVOffset:  { value: new THREE.Vector2(0, 0) }  // cover offset in UV
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
@@ -178,20 +201,30 @@ class RGBShiftEffect extends EffectShell {
         uniform sampler2D uTexture;
         uniform float uAlpha;
         uniform vec2 uOffset;
+        uniform vec2 uUVScale;
+        uniform vec2 uUVOffset;
         varying vec2 vUv;
-        vec3 rgbShift(sampler2D tex, vec2 uv, vec2 offset) {
-          float r = texture2D(tex, vUv + offset).r;
-          vec2 gb = texture2D(tex, vUv).gb;
+
+        vec3 rgbShift(sampler2D tex, vec2 baseUV, vec2 offset) {
+          // Apply small offset only to R channel for the shift
+          float r = texture2D(tex, baseUV + offset).r;
+          vec2 gb = texture2D(tex, baseUV).gb;
           return vec3(r, gb);
         }
+
         void main() {
-          vec3 color = rgbShift(uTexture, vUv, uOffset);
+          // Cover transform in UV space (keeps plane size fixed)
+          vec2 baseUV = vUv * uUVScale + uUVOffset;
+          vec3 color = rgbShift(uTexture, baseUV, uOffset);
           gl_FragColor = vec4(color, uAlpha);
         }`,
       transparent: true
     });
     this.plane = new THREE.Mesh(this.geometry, this.material);
     this.scene.add(this.plane);
+
+    // Ensure initial size is exactly 288x250
+    this.applyPlanePixelSize(this.targetSize.w, this.targetSize.h);
   }
 
   onMouseEnter() {
@@ -214,6 +247,7 @@ class RGBShiftEffect extends EffectShell {
   }
 
   onMouseMove() {
+    // project mouse into world space
     const vec = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5);
     vec.unproject(this.camera);
 
@@ -233,7 +267,7 @@ class RGBShiftEffect extends EffectShell {
   }
 
   onPositionUpdate() {
-    let offset = this.plane.position
+    const offset = this.plane.position
       .clone()
       .sub(this.position)
       .multiplyScalar(-this.options.strength);
@@ -251,37 +285,41 @@ class RGBShiftEffect extends EffectShell {
     this.currentItem = this.items[index];
     if (!this.currentItem.texture) return;
 
-    let img = this.currentItem.img;
-    let tex = this.currentItem.texture;
+    const img = this.currentItem.img;
+    const tex = this.currentItem.texture;
 
-    let iw = img.naturalWidth;
-    let ih = img.naturalHeight;
-    let imageAspect = iw / ih;
+    // lock plane to 288x250 (no extra scaling for cover)
+    this.applyPlanePixelSize(this.targetSize.w, this.targetSize.h);
 
-    let targetWidth = 288;
-    let targetHeight = 250;
-    let targetAspect = targetWidth / targetHeight;
+    // --- COVER in UV space (center-crop) ---
+    const iw = img.naturalWidth;
+    const ih = img.naturalHeight;
+    const imageAspect = iw / ih;
+    const targetAspect = this.targetSize.w / this.targetSize.h;
 
-    // cover logic
-    let coverScaleX = 1, coverScaleY = 1;
+    let uvScaleX = 1.0, uvScaleY = 1.0;
+    let uvOffsetX = 0.0, uvOffsetY = 0.0;
+
     if (imageAspect > targetAspect) {
-      coverScaleX = imageAspect / targetAspect;
+      // Image is wider -> crop width
+      uvScaleX = targetAspect / imageAspect; // < 1
+      uvScaleY = 1.0;
+      uvOffsetX = (1.0 - uvScaleX) * 0.5;   // center
+      uvOffsetY = 0.0;
+    } else if (imageAspect < targetAspect) {
+      // Image is taller -> crop height
+      uvScaleX = 1.0;
+      uvScaleY = imageAspect / targetAspect; // < 1
+      uvOffsetX = 0.0;
+      uvOffsetY = (1.0 - uvScaleY) * 0.5;    // center
     } else {
-      coverScaleY = targetAspect / imageAspect;
+      // Same aspect
+      uvScaleX = 1.0; uvScaleY = 1.0;
+      uvOffsetX = 0.0; uvOffsetY = 0.0;
     }
 
-    // convert px to world units
-    let worldHeight =
-      2 * Math.tan((this.camera.fov * Math.PI) / 360) *
-      Math.abs(this.camera.position.z);
-    let worldWidth = worldHeight * this.viewport.aspectRatio;
-
-    let planeScaleX = (targetWidth / this.viewport.width) * worldWidth;
-    let planeScaleY = (targetHeight / this.viewport.height) * worldHeight;
-
-    // ✅ Final scale (288x250 px, cover fit)
-    this.plane.scale.set(planeScaleX * coverScaleX, planeScaleY * coverScaleY, 1);
-
+    this.uniforms.uUVScale.value.set(uvScaleX, uvScaleY);
+    this.uniforms.uUVOffset.value.set(uvOffsetX, uvOffsetY);
     this.uniforms.uTexture.value = tex;
   }
 }
