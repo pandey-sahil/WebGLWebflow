@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+
 const vertexShader = `
 uniform vec2 uOffset;
 varying vec2 vUv;
@@ -7,8 +8,8 @@ varying vec2 vUv;
 float M_PI = 3.141529;
 
 vec3 deformationCurve(vec3 position, vec2 uv, vec2 offset){
-    position.x = position.x + (sin(uv.y * M_PI) * offset.x);
-    position.y = position.y + (sin(uv.x * M_PI) * offset.y);
+    position.x += (sin(uv.y * M_PI) * offset.x);
+    position.y += (sin(uv.x * M_PI) * offset.y);
     return position;
 }
 
@@ -31,7 +32,7 @@ void main(){
 `;
 
 function lerp(start, end, t){
-    return start * ( 1 - t ) + end * t;
+    return start * (1.0 - t) + end * t;
 }
 
 let targetX = 0;
@@ -39,14 +40,10 @@ let targetY = 0;
 
 class WebGL {
     constructor() {
-        // ✅ Wrapper section with attribute
-        this.container = document.querySelector('[webgl-anime="list-hover-wrapper"]');
-        if (!this.container) return;
-
-        this.links = [...this.container.querySelectorAll('[webgl-anime="list-hover"]')];
+        this.container = document.body;
+        this.links = [...document.querySelectorAll('.list-item')];
         this.scene = new THREE.Scene();
         this.perspective = 1000;
-        this.sizes = new THREE.Vector2(0, 0);
         this.offset = new THREE.Vector2(0, 0);
         this.uniforms = {
             uTexture: { value: null },
@@ -54,16 +51,25 @@ class WebGL {
             uOffset: { value: new THREE.Vector2(0.0, 0.0) }
         };
 
-        // Load textures from images inside each list-hover
+        // Load textures
         this.textures = this.links.map(link => {
-            const img = link.querySelector('[webgl-anime="list-hover-image"]');
-            return new THREE.TextureLoader().load(img.src);
+            const img = link.querySelector('.image-src img');
+            const tex = new THREE.TextureLoader().load(img.src);
+            tex.minFilter = THREE.LinearFilter;
+            tex.generateMipmaps = false;
+            return tex;
         });
 
         this.links.forEach((link, idx) => {
             link.addEventListener('mouseenter', () => {
                 this.uniforms.uTexture.value = this.textures[idx];
                 this.uniforms.uAlpha.value = 1.0;
+
+                // Scale mesh based on image aspect ratio
+                const img = link.querySelector('.image-src img');
+                const aspect = img.naturalWidth / img.naturalHeight;
+                const baseSize = 300; // control size
+                this.mesh.scale.set(baseSize * aspect, baseSize, 1);
             });
 
             link.addEventListener('mouseleave', () => {
@@ -79,35 +85,31 @@ class WebGL {
     }
 
     get viewport() {
-        let width = window.innerWidth;
-        let height = window.innerHeight;
-        let aspectRatio = width / height;
-        return { width, height, aspectRatio };
+        return {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            aspectRatio: window.innerWidth / window.innerHeight
+        };
     }
 
     addEventListeners() {
-        window.addEventListener('mouseenter', () => {
-            this.linkHovered = true;
-        });
-        window.addEventListener('mouseleave', () => {
-            this.linkHovered = false;
-        });
+        window.addEventListener('mouseenter', () => this.linkHovered = true);
+        window.addEventListener('mouseleave', () => this.linkHovered = false);
     }
 
     setUpCamera() {
         window.addEventListener('resize', this.onWindowResize.bind(this));
-
-        let fov = (180 * (2 * Math.atan(this.viewport.height / 2 / this.perspective))) / Math.PI;
+        const fov = (180 * (2 * Math.atan(this.viewport.height / 2 / this.perspective))) / Math.PI;
         this.camera = new THREE.PerspectiveCamera(fov, this.viewport.aspectRatio, 0.1, 1000);
         this.camera.position.set(0, 0, this.perspective);
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(this.viewport.width, this.viewport.height);
         this.renderer.setPixelRatio(window.devicePixelRatio);
-
-        // ✅ Add class for styling
-        this.renderer.domElement.classList.add("list-webgl-canvas");
-
+        this.renderer.domElement.classList.add("webgl-canvas"); // give css class
+        this.renderer.domElement.style.position = 'fixed';
+        this.renderer.domElement.style.top = 0;
+        this.renderer.domElement.style.left = 0;
         this.container.appendChild(this.renderer.domElement);
     }
 
@@ -115,14 +117,11 @@ class WebGL {
         this.geometry = new THREE.PlaneGeometry(1, 1, 20, 20);
         this.material = new THREE.ShaderMaterial({
             uniforms: this.uniforms,
-            vertexShader: vertexShader,
-            fragmentShader: fragmentShader,
+            vertexShader,
+            fragmentShader,
             transparent: true
         });
         this.mesh = new THREE.Mesh(this.geometry, this.material);
-        this.sizes.set(250, 350, 1);
-        this.mesh.scale.set(this.sizes.x, this.sizes.y, 1);
-        this.mesh.position.set(this.offset.x, this.offset.y, 0);
         this.scene.add(this.mesh);
     }
 
@@ -143,15 +142,25 @@ class WebGL {
     render() {
         this.offset.x = lerp(this.offset.x, targetX, 0.1);
         this.offset.y = lerp(this.offset.y, targetY, 0.1);
-        this.uniforms.uOffset.value.set((targetX - this.offset.x) * 0.0005, -(targetY - this.offset.y) * 0.0005);
-        this.mesh.position.set(this.offset.x - (this.viewport.width / 2), (this.viewport.height / 2) - this.offset.y, 0);
+
+        this.uniforms.uOffset.value.set(
+            (targetX - this.offset.x) * 0.0005,
+            -(targetY - this.offset.y) * 0.0005
+        );
+
+        // Position so image follows mouse naturally
+        this.mesh.position.set(
+            this.offset.x - (this.viewport.width / 2) + this.mesh.scale.x / 2,
+            (this.viewport.height / 2) - this.offset.y - this.mesh.scale.y / 2,
+            0
+        );
 
         this.links.forEach(link => {
             link.style.opacity = this.linkHovered ? 0.2 : 1;
         });
 
         this.renderer.render(this.scene, this.camera);
-        window.requestAnimationFrame(this.render.bind(this));
+        requestAnimationFrame(this.render.bind(this));
     }
 }
 
