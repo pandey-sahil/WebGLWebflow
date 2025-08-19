@@ -214,7 +214,6 @@ class RGBShiftEffect extends EffectShell {
   }
 
   onMouseMove() {
-    // project mouse into world space
     const vec = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5);
     vec.unproject(this.camera);
 
@@ -252,23 +251,37 @@ class RGBShiftEffect extends EffectShell {
     this.currentItem = this.items[index];
     if (!this.currentItem.texture) return;
 
-    // cover scaling
     let img = this.currentItem.img;
     let tex = this.currentItem.texture;
 
     let iw = img.naturalWidth;
     let ih = img.naturalHeight;
-    let containerAspect = this.viewport.width / this.viewport.height;
     let imageAspect = iw / ih;
 
+    let targetWidth = 288;
+    let targetHeight = 250;
+    let targetAspect = targetWidth / targetHeight;
+
+    // cover logic
     let scaleX = 1, scaleY = 1;
-    if (imageAspect > containerAspect) {
-      scaleX = imageAspect / containerAspect;
+    if (imageAspect > targetAspect) {
+      scaleY = 1;
+      scaleX = imageAspect / targetAspect;
     } else {
-      scaleY = containerAspect / imageAspect;
+      scaleX = 1;
+      scaleY = targetAspect / imageAspect;
     }
 
-    this.plane.scale.set(scaleX, scaleY, 1);
+    // convert px to world units
+    let worldHeight =
+      2 * Math.tan((this.camera.fov * Math.PI) / 360) *
+      Math.abs(this.camera.position.z);
+    let worldWidth = worldHeight * this.viewport.aspectRatio;
+
+    let planeScaleX = (targetWidth / this.viewport.width) * worldWidth;
+    let planeScaleY = (targetHeight / this.viewport.height) * worldHeight;
+
+    this.plane.scale.set(planeScaleX * scaleX, planeScaleY * scaleY, 1);
     this.uniforms.uTexture.value = tex;
   }
 }
