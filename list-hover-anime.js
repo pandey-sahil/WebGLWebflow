@@ -1,4 +1,4 @@
-
+import * as THREE from 'three';
 const vertexShader = `
 uniform vec2 uOffset;
 varying vec2 vUv;
