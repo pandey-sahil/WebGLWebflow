@@ -7,8 +7,8 @@ window.addEventListener('load', () => {
   // 🔧 SETTINGS
   const settings = {
     gridSize: 20.0,
-    aberrationStrength: 0.01,
-    distortionAmount: 0.2,
+    aberrationStrength: 0.003, // smaller RGB split
+    distortionAmount: 0.15,    // slightly reduced distortion
     easeFactor: 0.02,
   };
 
@@ -68,11 +68,14 @@ window.addEventListener('load', () => {
         vec2 mouseDirection = u_mouse - u_prevMouse;
         vec2 pixelToMouseDirection = centerOfPixel - u_mouse;
         float pixelDistanceToMouse = length(pixelToMouseDirection);
-        float strength = smoothstep(0.3, 0.0, pixelDistanceToMouse);
+
+        // Smaller, softer circle
+        float strength = smoothstep(0.15, 0.0, pixelDistanceToMouse);
 
         vec2 uvOffset = strength * -mouseDirection * u_distortionAmount;
         vec2 uv = vUv - uvOffset;
 
+        // Much smaller RGB shift
         vec4 colorR = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * u_aberrationStrength, 0.0));
         vec4 colorG = texture2D(u_texture, uv);
         vec4 colorB = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * u_aberrationStrength, 0.0));
