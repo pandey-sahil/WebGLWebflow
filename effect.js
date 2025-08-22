@@ -275,15 +275,14 @@ link.addEventListener("mouseenter", () => {
     currentIndex = idx;
     transitioning = true;
     fadingOut = false;
-    const img = link.querySelector('[webgl-anime="image-src"]');
+   const img = link.querySelector('[webgl-anime="image-src"]');
     if (img) {
-        const naturalWidth = img.naturalWidth;
-        const naturalHeight = img.naturalHeight;
-        console.log("Image dimensions:", naturalWidth, naturalHeight);
+        const rect = img.getBoundingClientRect();
+        console.log("Rendered image size:", rect.width, rect.height);
 
-        // Mesh size exactly matches image size
-        mesh.scale.set(naturalWidth, naturalHeight, 1);
-        console.log("Mesh scaled to image size");
+        // Mesh size matches rendered image size
+        mesh.scale.set(rect.width, rect.height, 1);
+        console.log("Mesh scaled to rendered image size");
     } else {
         console.log("No image found inside link");
     }
