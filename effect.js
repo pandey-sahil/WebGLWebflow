@@ -150,15 +150,17 @@ Hover List Effect Animation
 */ 
 function HoverListEffect(globalRenderer) {
   const wrapper = document.querySelector('[webgl-anime="list-hover-wrapper"]');
-  if (!wrapper) return null;
+  if (!wrapper) {
+    console.warn("HoverListEffect: No wrapper found");
+    return null;
+  }
 
   const SETTINGS = {
     deformation: { strength: 0.00055, smoothing: 0.1 },
-    transition: { speed: 0.05, fadeOutSpeed: 0.06 },
+    transition: { speed: 0.05, fadeInSpeed: 0.08, fadeOutSpeed: 0.06 },
     mesh: { baseSize: 300, segments: 20 }
   };
 
-  // Vertex shader
   const vertexShader = `
     uniform vec2 uOffset;
     varying vec2 vUv;
@@ -178,7 +180,6 @@ function HoverListEffect(globalRenderer) {
     }
   `;
 
-  // Fragment shader
   const fragmentShader = `
     uniform sampler2D uTexture;
     uniform sampler2D uPrevTexture;
@@ -214,30 +215,32 @@ function HoverListEffect(globalRenderer) {
     }
   `;
 
-  // Scene & Camera
   const scene = new THREE.Scene();
   const perspective = 1000;
+  let offset = new THREE.Vector2(0, 0);
+  let targetX = 0, targetY = 0;
+  let currentIndex = -1;
+  let transitioning = false, fadingOut = false;
+
+  // CAMERA
   const { clientWidth: width, clientHeight: height } = wrapper;
-  const camera = new THREE.PerspectiveCamera(
-    (180 * (2 * Math.atan(height / 2 / perspective))) / Math.PI,
-    width / height,
-    0.1,
-    1000
-  );
+  const aspect = width / height;
+  const fov = (180 * (2 * Math.atan(height / 2 / perspective))) / Math.PI;
+  const camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 1000);
   camera.position.set(0, 0, perspective);
 
-  // Uniforms
+  // UNIFORMS
   const uniforms = {
     uTexture: { value: null },
     uPrevTexture: { value: null },
     uAlpha: { value: 0.0 },
-    uOffset: { value: new THREE.Vector2(0, 0) },
+    uOffset: { value: new THREE.Vector2(0.0, 0.0) },
     uMixFactor: { value: 1.0 },
-    uRGBOffset: { value: new THREE.Vector2(0, 0) },
-    uTime: { value: 0 }
+    uRGBOffset: { value: new THREE.Vector2(0.0, 0.0) },
+    uTime: { value: 0.0 }
   };
 
-  // Load textures
+  // LOAD textures
   const links = [...wrapper.querySelectorAll('[webgl-anime="list-item"]')];
   const textures = links.map(link => {
     const img = link.querySelector('[webgl-anime="image-src"]');
@@ -246,30 +249,28 @@ function HoverListEffect(globalRenderer) {
     tex.minFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
     return tex;
-  }).filter(t => t !== null);
+  }).filter(tex => tex !== null);
 
-  // Mesh
+  // MESH
   const geometry = new THREE.PlaneGeometry(1, 1, SETTINGS.mesh.segments, SETTINGS.mesh.segments);
-  const material = new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader, transparent: true });
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader,
+    fragmentShader,
+    transparent: true
+  });
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
 
-  // Mouse / transition state
-  let offset = new THREE.Vector2(0, 0);
-  let target = { x: 0, y: 0 };
-  let currentIndex = -1;
-  let transitioning = false;
-  let fadingOut = false;
-
-  // Link hover events
+  // LINK EVENTS
   links.forEach((link, idx) => {
     if (!textures[idx]) return;
-
+    
     link.addEventListener("mouseenter", () => {
       uniforms.uPrevTexture.value = uniforms.uTexture.value;
       uniforms.uTexture.value = textures[idx];
-      uniforms.uAlpha.value = 1;
-      uniforms.uMixFactor.value = 0;
+      uniforms.uAlpha.value = 1.0;
+      uniforms.uMixFactor.value = 0.0;
       currentIndex = idx;
       transitioning = true;
       fadingOut = false;
@@ -286,14 +287,14 @@ function HoverListEffect(globalRenderer) {
     });
   });
 
-  // Mouse move
-  wrapper.addEventListener("mousemove", e => {
+  // MOUSE MOVE
+  wrapper.addEventListener("mousemove", (e) => {
     const rect = wrapper.getBoundingClientRect();
-    target.x = e.clientX - rect.left;
-    target.y = e.clientY - rect.top;
+    targetX = e.clientX - rect.left;
+    targetY = e.clientY - rect.top;
   });
 
-  // Window resize
+  // RESIZE
   window.addEventListener("resize", () => {
     const { clientWidth: w, clientHeight: h } = wrapper;
     camera.aspect = w / h;
@@ -301,53 +302,55 @@ function HoverListEffect(globalRenderer) {
     camera.updateProjectionMatrix();
   });
 
-  // Update loop (called by global renderer)
   function update() {
     uniforms.uTime.value = Date.now() * 0.001;
 
     // Smooth mouse offset
-    offset.x += (target.x - offset.x) * SETTINGS.deformation.smoothing;
-    offset.y += (target.y - offset.y) * SETTINGS.deformation.smoothing;
+    offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
+    offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
 
     uniforms.uOffset.value.set(
-      (target.x - offset.x) * SETTINGS.deformation.strength,
-      -(target.y - offset.y) * SETTINGS.deformation.strength
+      (targetX - offset.x) * SETTINGS.deformation.strength,
+      -(targetY - offset.y) * SETTINGS.deformation.strength
     );
 
     uniforms.uRGBOffset.value.set(
-      (target.x - offset.x) * 0.001,
-      (target.y - offset.y) * 0.001
+      (targetX - offset.x) * 0.001,
+      (targetY - offset.y) * 0.001
     );
 
-    // Transition blending
-    if (transitioning && uniforms.uMixFactor.value < 1) {
+    // Handle transitions
+    if (transitioning && uniforms.uMixFactor.value < 1.0) {
       uniforms.uMixFactor.value += SETTINGS.transition.speed;
-      if (uniforms.uMixFactor.value >= 1) {
+      if (uniforms.uMixFactor.value >= 1.0) {
         transitioning = false;
         uniforms.uPrevTexture.value = null;
       }
     }
 
-    // Fade out
-    if (fadingOut && uniforms.uAlpha.value > 0) {
+    if (fadingOut && uniforms.uAlpha.value > 0.0) {
       uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
-      if (uniforms.uAlpha.value <= 0) {
-        uniforms.uAlpha.value = 0;
+      if (uniforms.uAlpha.value <= 0.0) {
+        uniforms.uAlpha.value = 0.0;
         fadingOut = false;
       }
     }
 
-    // Position mesh under mouse
+    // Keep mesh under mouse even on scroll
     const rect = wrapper.getBoundingClientRect();
+    const scrollX = window.scrollX || window.pageXOffset;
+    const scrollY = window.scrollY || window.pageYOffset;
+
     mesh.position.set(
-      offset.x - rect.width / 2 + mesh.scale.x / 2,
-      rect.height / 2 - offset.y - mesh.scale.y / 2,
+      offset.x - rect.width / 2 + mesh.scale.x / 2 - scrollX,
+      rect.height / 2 - offset.y - mesh.scale.y / 2 + scrollY,
       0
     );
   }
 
   return { scene, camera, update };
 }
+
 
 
 /*
