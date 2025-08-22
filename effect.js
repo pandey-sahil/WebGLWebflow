@@ -11,10 +11,13 @@ window.WebGLEffects = (function () {
 
   function init() {
     // Shared renderer
-    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+     renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+     renderer.setPixelRatio(window.devicePixelRatio);
+     renderer.setSize(window.innerWidth, window.innerHeight);
+     
+     // add class before appending
+     renderer.domElement.classList.add("global-webgl-canvas");
+     document.body.appendChild(renderer.domElement);
 
     // Shared scene + camera (can be overridden per effect)
     scene = new THREE.Scene();
