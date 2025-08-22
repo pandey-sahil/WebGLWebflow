@@ -149,7 +149,7 @@ Distortion Effect Animation
 */ 
 function DistortionEffect(globalRenderer) {
   const container = document.querySelector("[data-webgl-container]");
-  const image = document.querySelector("[distorted-image]");
+  const image = document.querySelector("[data-distorted-image]");
 
   if (!container || !image) {
     console.warn("DistortionEffect: Required elements not found");
