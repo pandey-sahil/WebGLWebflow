@@ -281,23 +281,29 @@ link.addEventListener("mouseenter", () => {
     const img = link.querySelector('[webgl-anime="image-src"]');
     if (img) {
         const rect = img.getBoundingClientRect();
-        const imgRatio = img.naturalWidth / img.naturalHeight;
-        const containerRatio = rect.width / rect.height;
+const imgRatio = img.naturalWidth / img.naturalHeight;
+const containerRatio = rect.width / rect.height;
 
-        let meshWidth, meshHeight;
+let meshWidth, meshHeight;
 
-        if (containerRatio > imgRatio) {
-            // container is wider than image → scale by width
-            meshWidth = rect.width;
-            meshHeight = rect.width / imgRatio;
-        } else {
-            // container is taller than image → scale by height
-            meshHeight = rect.height;
-            meshWidth = rect.height * imgRatio;
-        }
+if (containerRatio > imgRatio) {
+    meshWidth = rect.width;
+    meshHeight = rect.width / imgRatio;
+} else {
+    meshHeight = rect.height;
+    meshWidth = rect.height * imgRatio;
+}
 
-        mesh.scale.set(meshWidth, meshHeight, 1);
-        console.log("Mesh scaled with cover aspect ratio:", meshWidth, meshHeight);
+// Set scale
+mesh.scale.set(meshWidth, meshHeight, 1);
+
+// Center the mesh over the image
+const offsetX = rect.left + rect.width / 2 - window.innerWidth / 2;
+const offsetY = - (rect.top + rect.height / 2 - window.innerHeight / 2);
+mesh.position.set(offsetX, offsetY, 0);
+
+console.log("Mesh scaled and centered for cover");
+
     } else {
         console.log("No image found inside link");
     }
