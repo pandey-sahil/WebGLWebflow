@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 // ========== GLOBAL RENDERER ==========
 window.WebGLEffects = (function () {
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
