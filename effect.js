@@ -268,25 +268,41 @@ function HoverListEffect(globalRenderer) {
     
 link.addEventListener("mouseenter", () => {
     console.log("Mouse entered link");
+
     uniforms.uPrevTexture.value = uniforms.uTexture.value;
     uniforms.uTexture.value = textures[idx];
     uniforms.uAlpha.value = 1.0;
     uniforms.uMixFactor.value = 0.0;
+
     currentIndex = idx;
     transitioning = true;
     fadingOut = false;
-   const img = link.querySelector('[webgl-anime="image-src"]');
+
+    const img = link.querySelector('[webgl-anime="image-src"]');
     if (img) {
         const rect = img.getBoundingClientRect();
-        console.log("Rendered image size:", rect.width, rect.height);
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const containerRatio = rect.width / rect.height;
 
-        // Mesh size matches rendered image size
-        mesh.scale.set(rect.width, rect.height, 1);
-        console.log("Mesh scaled to rendered image size");
+        let meshWidth, meshHeight;
+
+        if (containerRatio > imgRatio) {
+            // container is wider than image → scale by width
+            meshWidth = rect.width;
+            meshHeight = rect.width / imgRatio;
+        } else {
+            // container is taller than image → scale by height
+            meshHeight = rect.height;
+            meshWidth = rect.height * imgRatio;
+        }
+
+        mesh.scale.set(meshWidth, meshHeight, 1);
+        console.log("Mesh scaled with cover aspect ratio:", meshWidth, meshHeight);
     } else {
         console.log("No image found inside link");
     }
 });
+
 
 
 
