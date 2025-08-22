@@ -318,12 +318,13 @@ console.log("Mesh scaled and centered for cover");
   });
 
 // MOUSE MOVE
+document.addEventListener('mousemove', (e) => clientScrollY = e.clientY);
+document.addEventListener('scroll', () => total_scroll = window.scrollY + clientScrollY);
+
 wrapper.addEventListener("mousemove", (e) => {
   const rect = wrapper.getBoundingClientRect();
-
-  // Convert to normalized device coordinates (NDC)
-  targetX = ((e.clientX - rect.left) / rect.width) * 2 - 1;   // -1 to 1
-  targetY = -((e.clientY - rect.top) / rect.height) * 2 + 1; // -1 to 1
+  targetX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  targetY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 });
 
 // RESIZE
@@ -334,10 +335,10 @@ window.addEventListener("resize", () => {
   camera.updateProjectionMatrix();
 });
 
+
 function update() {
   uniforms.uTime.value = Date.now() * 0.001;
 
-  // Smooth mouse offset
   offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
   offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
 
@@ -346,12 +347,8 @@ function update() {
     offset.y * SETTINGS.deformation.strength
   );
 
-  uniforms.uRGBOffset.value.set(
-    offset.x * 0.001,
-    offset.y * 0.001
-  );
+  uniforms.uRGBOffset.value.set(offset.x * 0.001, offset.y * 0.001);
 
-  // Handle transitions
   if (transitioning && uniforms.uMixFactor.value < 1.0) {
     uniforms.uMixFactor.value += SETTINGS.transition.speed;
     if (uniforms.uMixFactor.value >= 1.0) {
@@ -362,28 +359,17 @@ function update() {
 
   if (fadingOut && uniforms.uAlpha.value > 0.0) {
     uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
-    if (uniforms.uAlpha.value <= 0.0) {
-      uniforms.uAlpha.value = 0.0;
-      fadingOut = false;
-    }
+    if (uniforms.uAlpha.value <= 0.0) fadingOut = false, uniforms.uAlpha.value = 0.0;
   }
 
-  // Correct mesh position relative to wrapper
   const rect = wrapper.getBoundingClientRect();
   const wrapperCenterX = rect.left + rect.width / 2;
   const wrapperCenterY = rect.top + rect.height / 2;
 
-  // Convert NDC to world space for mesh positioning
-  mesh.position.set(
-    offset.x * rect.width / 2,                 // x
-    offset.y * rect.height / 2,               // y
-    0
-  );
-
+  mesh.position.set(offset.x * rect.width / 2, offset.y * rect.height / 2, 0);
   mesh.position.x += wrapperCenterX - window.innerWidth / 2;
-  mesh.position.y += window.innerHeight / 2 - wrapperCenterY;
+  mesh.position.y += window.innerHeight / 2 - wrapperCenterY - total_scroll;
 }
-
 
 
   return { scene, camera, update };
