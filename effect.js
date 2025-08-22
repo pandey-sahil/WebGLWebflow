@@ -392,7 +392,6 @@ function update() {
 Buldge Effect
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */ 
-
 function CardHoverEffect(renderer) {
   const wrappers = Array.from(document.querySelectorAll('[webgl-anime="image-hover"]'));
   console.log("CardHoverEffect: Found wrappers", wrappers.length);
@@ -426,10 +425,11 @@ function CardHoverEffect(renderer) {
     }
   `;
 
+  // Init planes for each wrapper
   wrappers.forEach((wrapper, idx) => {
     const img = wrapper.querySelector('img');
     if (!img) {
-      console.warn("CardHoverEffect: No img found in wrapper", idx, wrapper);
+      console.warn("CardHoverEffect: No img found in wrapper", idx);
       return;
     }
 
@@ -440,10 +440,10 @@ function CardHoverEffect(renderer) {
     const height = wrapper.offsetHeight;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(-width / 2, width / 2, height / 2, -height / 2, 0.1, 10);
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
     camera.position.z = 1;
 
-    const geometry = new THREE.PlaneGeometry(width, height);
+    const geometry = new THREE.PlaneGeometry(1, 1);
     const material = new THREE.ShaderMaterial({
       uniforms: {
         uTexture: { value: texture },
@@ -457,7 +457,7 @@ function CardHoverEffect(renderer) {
     const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
 
-    planes.push({ wrapper, scene, camera, material });
+    planes.push({ wrapper, scene, camera, mesh, material });
 
     wrapper.addEventListener('mousemove', e => {
       const rect = wrapper.getBoundingClientRect();
@@ -465,36 +465,47 @@ function CardHoverEffect(renderer) {
       const y = 1 - (e.clientY - rect.top) / rect.height;
       material.uniforms.uMouse.value.set(x, y);
       material.uniforms.uHover.value += (1.0 - material.uniforms.uHover.value) * 0.1;
-      console.log(`Wrapper ${idx} mousemove: x=${x.toFixed(2)} y=${y.toFixed(2)} hover=${material.uniforms.uHover.value.toFixed(2)}`);
+      // console.log(`Wrapper ${idx} mousemove: x=${x} y=${y} hover=${material.uniforms.uHover.value}`);
     });
 
     wrapper.addEventListener('mouseleave', () => {
-      console.log("Wrapper", idx, "mouseleave");
-    });
-
-    window.addEventListener('resize', () => {
-      const w = wrapper.offsetWidth;
-      const h = wrapper.offsetHeight;
-      camera.left = -w / 2;
-      camera.right = w / 2;
-      camera.top = h / 2;
-      camera.bottom = -h / 2;
-      camera.updateProjectionMatrix();
-      mesh.scale.set(w, h, 1);
-      console.log("Wrapper", idx, "resized", w, h);
+      // decay handled in update
+      // console.log("Wrapper", idx, "mouseleave");
     });
   });
 
+  // Update function called per frame
   return {
     update: () => {
       planes.forEach((p, idx) => {
-        p.material.uniforms.uHover.value *= 0.9; // decay
+        const rect = p.wrapper.getBoundingClientRect();
+        const scrollY = window.scrollY || window.pageYOffset;
+
+        // Center of wrapper in viewport + scroll
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2 + scrollY;
+
+        // Convert to normalized device coordinates (-1 to 1)
+        const ndcX = (centerX / window.innerWidth) * 2 - 1;
+        const ndcY = -((centerY / window.innerHeight) * 2 - 1);
+
+        // Scale relative to viewport
+        const scaleX = rect.width / window.innerWidth;
+        const scaleY = rect.height / window.innerHeight;
+
+        p.mesh.position.set(ndcX, ndcY, 0);
+        p.mesh.scale.set(scaleX, scaleY, 1);
+
+        // Hover decay
+        p.material.uniforms.uHover.value *= 0.9;
+
         // Render each card’s scene
         renderer.render(p.scene, p.camera);
       });
     }
   };
 }
+
 
 
 /*
