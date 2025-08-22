@@ -387,6 +387,110 @@ function update() {
 }
 
 
+/*
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+Buldge Effect
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+*/ 
+
+
+function CardHoverEffect(renderer, globalScene, globalCamera) {
+  const cards = Array.from(document.querySelectorAll('[webgl-anime="image-hover"]'));
+  const loader = new THREE.TextureLoader();
+  const planes = [];
+
+  // Shader code
+  const vertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+    }
+  `;
+  const fragmentShader = `
+    precision highp float;
+    uniform sampler2D uTexture;
+    uniform vec2 uMouse;
+    uniform float uHover;
+    varying vec2 vUv;
+    void main() {
+      vec2 uv = vUv;
+      vec2 diff = uv - uMouse;
+      float dist = length(diff);
+      uv -= diff * 0.25 * uHover * exp(-3.0*dist*dist);
+      vec4 color = texture2D(uTexture, uv);
+      float glow = exp(-3.0*dist*dist) * 0.25;
+      color.rgb += glow;
+      gl_FragColor = color;
+    }
+  `;
+
+  cards.forEach(card => {
+    const img = card.querySelector('img');
+    const texture = loader.load(img.src);
+
+    const width = card.offsetWidth;
+    const height = card.offsetHeight;
+
+    // Scene & camera for this card
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(-width / 2, width / 2, height / 2, -height / 2, 0.1, 10);
+    camera.position.z = 1;
+
+    const geometry = new THREE.PlaneGeometry(width, height);
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTexture: { value: texture },
+        uMouse: { value: new THREE.Vector2(-1, -1) },
+        uHover: { value: 0 }
+      },
+      vertexShader,
+      fragmentShader
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    planes.push({ card, scene, camera, material });
+
+    // Mouse tracking
+    card.addEventListener('mousemove', e => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = 1 - (e.clientY - rect.top) / rect.height;
+      material.uniforms.uMouse.value.set(x, y);
+      material.uniforms.uHover.value += (1.0 - material.uniforms.uHover.value) * 0.1;
+    });
+
+    card.addEventListener('mouseleave', () => {
+      // Smooth fade handled in update loop
+    });
+
+    // Responsive
+    window.addEventListener('resize', () => {
+      const width = card.offsetWidth;
+      const height = card.offsetHeight;
+      camera.left = -width / 2;
+      camera.right = width / 2;
+      camera.top = height / 2;
+      camera.bottom = -height / 2;
+      camera.updateProjectionMatrix();
+      mesh.scale.set(width, height, 1);
+    });
+  });
+
+  return {
+    update: () => {
+      planes.forEach(p => {
+        p.material.uniforms.uHover.value *= 0.9; // smooth decay
+        renderer.render(p.scene, p.camera);
+      });
+    }
+  };
+}
+
+// Add effect to global manager
+WebGLEffects.addEffect(CardHoverEffect);
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
