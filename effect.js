@@ -302,10 +302,9 @@ const offsetX = rect.left + rect.width / 2 - window.innerWidth / 2;
 const offsetY = - (rect.top + rect.height / 2 - window.innerHeight / 2);
 mesh.position.set(offsetX, offsetY, 0);
 
-console.log("Mesh scaled and centered for cover");
 
     } else {
-        console.log("No image found inside link");
+   
     }
 });
 
