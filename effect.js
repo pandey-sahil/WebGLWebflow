@@ -71,7 +71,7 @@ window.WebGLEffects = (function () {
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
 Grid Hover Animation
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
-*/ 
+
 function GridAnimeEffect(globalRenderer) {
   const image = document.querySelector("img[webgl-grid-anime]");
   if (!image) {
@@ -140,7 +140,7 @@ function GridAnimeEffect(globalRenderer) {
   }
 
   return { scene, camera, update };
-}
+}*/ 
 
 
 /*
@@ -150,17 +150,15 @@ Hover List Effect Animation
 */ 
 function HoverListEffect(globalRenderer) {
   const wrapper = document.querySelector('[webgl-anime="list-hover-wrapper"]');
-  if (!wrapper) {
-    console.warn("HoverListEffect: No wrapper found");
-    return null;
-  }
+  if (!wrapper) return null;
 
   const SETTINGS = {
     deformation: { strength: 0.00055, smoothing: 0.1 },
-    transition: { speed: 0.05, fadeInSpeed: 0.08, fadeOutSpeed: 0.06 },
+    transition: { speed: 0.05, fadeOutSpeed: 0.06 },
     mesh: { baseSize: 300, segments: 20 }
   };
 
+  // Vertex shader
   const vertexShader = `
     uniform vec2 uOffset;
     varying vec2 vUv;
@@ -180,6 +178,7 @@ function HoverListEffect(globalRenderer) {
     }
   `;
 
+  // Fragment shader
   const fragmentShader = `
     uniform sampler2D uTexture;
     uniform sampler2D uPrevTexture;
@@ -190,62 +189,55 @@ function HoverListEffect(globalRenderer) {
     varying vec2 vUv;
 
     void main(){
-        // Ripple effect for RGB offset
         vec2 center = vec2(0.5, 0.5);
         float distance = length(vUv - center);
         float ripple = sin(distance * 20.0 - uTime * 5.0) * 0.02;
-        
-        // RGB split with ripple effect
+
         float offsetStrength = 0.01;
         vec2 rippleOffset = uRGBOffset + vec2(ripple);
-        
-        // RGB split sampling with ripple
+
         vec4 texR = texture2D(uTexture, vUv + rippleOffset * offsetStrength);
         vec4 texG = texture2D(uTexture, vUv);
         vec4 texB = texture2D(uTexture, vUv - rippleOffset * offsetStrength);
-        
+
         vec3 newColor = vec3(texR.r, texG.g, texB.b);
 
-        // Previous texture with same RGB split ripple
         vec4 prevTexR = texture2D(uPrevTexture, vUv + rippleOffset * offsetStrength);
         vec4 prevTexG = texture2D(uPrevTexture, vUv);
         vec4 prevTexB = texture2D(uPrevTexture, vUv - rippleOffset * offsetStrength);
-        
+
         vec3 prevColor = vec3(prevTexR.r, prevTexG.g, prevTexB.b);
 
-        // crossfade between previous and new texture
         vec3 finalColor = mix(prevColor, newColor, uMixFactor);
 
         gl_FragColor = vec4(finalColor, uAlpha);
     }
   `;
 
+  // Scene & Camera
   const scene = new THREE.Scene();
   const perspective = 1000;
-  let offset = new THREE.Vector2(0, 0);
-  let targetX = 0, targetY = 0;
-  let currentIndex = -1;
-  let transitioning = false, fadingOut = false;
-
-  // CAMERA
   const { clientWidth: width, clientHeight: height } = wrapper;
-  const aspect = width / height;
-  const fov = (180 * (2 * Math.atan(height / 2 / perspective))) / Math.PI;
-  const camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 1000);
+  const camera = new THREE.PerspectiveCamera(
+    (180 * (2 * Math.atan(height / 2 / perspective))) / Math.PI,
+    width / height,
+    0.1,
+    1000
+  );
   camera.position.set(0, 0, perspective);
 
-  // UNIFORMS
+  // Uniforms
   const uniforms = {
     uTexture: { value: null },
     uPrevTexture: { value: null },
     uAlpha: { value: 0.0 },
-    uOffset: { value: new THREE.Vector2(0.0, 0.0) },
+    uOffset: { value: new THREE.Vector2(0, 0) },
     uMixFactor: { value: 1.0 },
-    uRGBOffset: { value: new THREE.Vector2(0.0, 0.0) },
-    uTime: { value: 0.0 }
+    uRGBOffset: { value: new THREE.Vector2(0, 0) },
+    uTime: { value: 0 }
   };
 
-  // LOAD textures
+  // Load textures
   const links = [...wrapper.querySelectorAll('[webgl-anime="list-item"]')];
   const textures = links.map(link => {
     const img = link.querySelector('[webgl-anime="image-src"]');
@@ -254,28 +246,30 @@ function HoverListEffect(globalRenderer) {
     tex.minFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
     return tex;
-  }).filter(tex => tex !== null);
+  }).filter(t => t !== null);
 
-  // MESH
+  // Mesh
   const geometry = new THREE.PlaneGeometry(1, 1, SETTINGS.mesh.segments, SETTINGS.mesh.segments);
-  const material = new THREE.ShaderMaterial({
-    uniforms,
-    vertexShader,
-    fragmentShader,
-    transparent: true
-  });
+  const material = new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader, transparent: true });
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
 
-  // LINK EVENTS
+  // Mouse / transition state
+  let offset = new THREE.Vector2(0, 0);
+  let target = { x: 0, y: 0 };
+  let currentIndex = -1;
+  let transitioning = false;
+  let fadingOut = false;
+
+  // Link hover events
   links.forEach((link, idx) => {
     if (!textures[idx]) return;
-    
+
     link.addEventListener("mouseenter", () => {
       uniforms.uPrevTexture.value = uniforms.uTexture.value;
       uniforms.uTexture.value = textures[idx];
-      uniforms.uAlpha.value = 1.0;
-      uniforms.uMixFactor.value = 0.0;
+      uniforms.uAlpha.value = 1;
+      uniforms.uMixFactor.value = 0;
       currentIndex = idx;
       transitioning = true;
       fadingOut = false;
@@ -292,14 +286,14 @@ function HoverListEffect(globalRenderer) {
     });
   });
 
-  // MOUSE MOVE
-  wrapper.addEventListener("mousemove", (e) => {
+  // Mouse move
+  wrapper.addEventListener("mousemove", e => {
     const rect = wrapper.getBoundingClientRect();
-    targetX = e.clientX - rect.left;
-    targetY = e.clientY - rect.top;
+    target.x = e.clientX - rect.left;
+    target.y = e.clientY - rect.top;
   });
 
-  // RESIZE
+  // Window resize
   window.addEventListener("resize", () => {
     const { clientWidth: w, clientHeight: h } = wrapper;
     camera.aspect = w / h;
@@ -307,39 +301,43 @@ function HoverListEffect(globalRenderer) {
     camera.updateProjectionMatrix();
   });
 
+  // Update loop (called by global renderer)
   function update() {
     uniforms.uTime.value = Date.now() * 0.001;
 
-    offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
-    offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
+    // Smooth mouse offset
+    offset.x += (target.x - offset.x) * SETTINGS.deformation.smoothing;
+    offset.y += (target.y - offset.y) * SETTINGS.deformation.smoothing;
 
     uniforms.uOffset.value.set(
-      (targetX - offset.x) * SETTINGS.deformation.strength,
-      -(targetY - offset.y) * SETTINGS.deformation.strength
+      (target.x - offset.x) * SETTINGS.deformation.strength,
+      -(target.y - offset.y) * SETTINGS.deformation.strength
     );
 
     uniforms.uRGBOffset.value.set(
-      (targetX - offset.x) * 0.001,
-      (targetY - offset.y) * 0.001
+      (target.x - offset.x) * 0.001,
+      (target.y - offset.y) * 0.001
     );
 
-    if (transitioning && uniforms.uMixFactor.value < 1.0) {
+    // Transition blending
+    if (transitioning && uniforms.uMixFactor.value < 1) {
       uniforms.uMixFactor.value += SETTINGS.transition.speed;
-      if (uniforms.uMixFactor.value >= 1.0) {
+      if (uniforms.uMixFactor.value >= 1) {
         transitioning = false;
         uniforms.uPrevTexture.value = null;
       }
     }
 
-    if (fadingOut && uniforms.uAlpha.value > 0.0) {
+    // Fade out
+    if (fadingOut && uniforms.uAlpha.value > 0) {
       uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
-      if (uniforms.uAlpha.value <= 0.0) {
-        uniforms.uAlpha.value = 0.0;
+      if (uniforms.uAlpha.value <= 0) {
+        uniforms.uAlpha.value = 0;
         fadingOut = false;
       }
     }
 
-    // position mesh at mouse
+    // Position mesh under mouse
     const rect = wrapper.getBoundingClientRect();
     mesh.position.set(
       offset.x - rect.width / 2 + mesh.scale.x / 2,
@@ -350,6 +348,7 @@ function HoverListEffect(globalRenderer) {
 
   return { scene, camera, update };
 }
+
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
