@@ -1,44 +1,58 @@
 import * as THREE from 'three';
-// ========== GLOBAL RENDERER ==========
+/*
+=====================================================
+   GLOBAL EFFECT MANAGER
+=====================================================
+*/
 window.WebGLEffects = (function () {
-  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-  renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
-
   const effects = [];
+  let renderer, scene, camera;
+
+  function init() {
+    // Shared renderer
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Shared scene + camera (can be overridden per effect)
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(
+      45,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
+    camera.position.z = 5;
+
+    animate();
+    window.addEventListener("resize", onResize);
+  }
+
+  function onResize() {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
 
   function addEffect(effectFn) {
-    const { scene, camera, update } = effectFn(renderer.domElement);
-    effects.push({ scene, camera, update });
+    const effect = effectFn(renderer, scene, camera);
+    if (!effect) return; // gracefully skip if it didn’t init
+    effects.push(effect);
   }
-
-  function resize() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    renderer.setSize(width, height);
-
-    effects.forEach(({ camera }) => {
-      if (camera.isPerspectiveCamera) {
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      }
-    });
-  }
-  window.addEventListener("resize", resize);
-  resize();
 
   function animate(time) {
     requestAnimationFrame(animate);
-    effects.forEach(({ scene, camera, update }) => {
-      if (update) update(time);
-      renderer.render(scene, camera);
+    effects.forEach((e) => {
+      if (e.update) e.update(time);
     });
   }
-  animate();
+
+  init();
 
   return { addEffect };
 })();
+
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
