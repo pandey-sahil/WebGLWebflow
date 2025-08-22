@@ -393,9 +393,10 @@ Buldge Effect
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */ 
 
-
 function CardHoverEffect(renderer) {
   const wrappers = Array.from(document.querySelectorAll('[webgl-anime="image-hover"]'));
+  console.log("CardHoverEffect: Found wrappers", wrappers.length);
+
   const loader = new THREE.TextureLoader();
   const planes = [];
 
@@ -425,11 +426,16 @@ function CardHoverEffect(renderer) {
     }
   `;
 
-  wrappers.forEach(wrapper => {
+  wrappers.forEach((wrapper, idx) => {
     const img = wrapper.querySelector('img');
-    if (!img) return;
+    if (!img) {
+      console.warn("CardHoverEffect: No img found in wrapper", idx, wrapper);
+      return;
+    }
 
+    console.log("CardHoverEffect: Loading image for wrapper", idx, img.src);
     const texture = loader.load(img.src);
+
     const width = wrapper.offsetWidth;
     const height = wrapper.offsetHeight;
 
@@ -451,7 +457,6 @@ function CardHoverEffect(renderer) {
     const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
 
-    wrapper.appendChild(renderer.domElement); // optional: or attach once globally
     planes.push({ wrapper, scene, camera, material });
 
     wrapper.addEventListener('mousemove', e => {
@@ -460,28 +465,31 @@ function CardHoverEffect(renderer) {
       const y = 1 - (e.clientY - rect.top) / rect.height;
       material.uniforms.uMouse.value.set(x, y);
       material.uniforms.uHover.value += (1.0 - material.uniforms.uHover.value) * 0.1;
+      console.log(`Wrapper ${idx} mousemove: x=${x.toFixed(2)} y=${y.toFixed(2)} hover=${material.uniforms.uHover.value.toFixed(2)}`);
     });
 
     wrapper.addEventListener('mouseleave', () => {
-      // smooth decay handled in update
+      console.log("Wrapper", idx, "mouseleave");
     });
 
     window.addEventListener('resize', () => {
-      const width = wrapper.offsetWidth;
-      const height = wrapper.offsetHeight;
-      camera.left = -width / 2;
-      camera.right = width / 2;
-      camera.top = height / 2;
-      camera.bottom = -height / 2;
+      const w = wrapper.offsetWidth;
+      const h = wrapper.offsetHeight;
+      camera.left = -w / 2;
+      camera.right = w / 2;
+      camera.top = h / 2;
+      camera.bottom = -h / 2;
       camera.updateProjectionMatrix();
-      mesh.scale.set(width, height, 1);
+      mesh.scale.set(w, h, 1);
+      console.log("Wrapper", idx, "resized", w, h);
     });
   });
 
   return {
     update: () => {
-      planes.forEach(p => {
-        p.material.uniforms.uHover.value *= 0.9;
+      planes.forEach((p, idx) => {
+        p.material.uniforms.uHover.value *= 0.9; // decay
+        // Render each card’s scene
         renderer.render(p.scene, p.camera);
       });
     }
