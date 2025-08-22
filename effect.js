@@ -318,6 +318,8 @@ console.log("Mesh scaled and centered for cover");
   });
 
 // MOUSE MOVE
+   let clientScrollY = 0;
+let total_scroll = 0;
 document.addEventListener('mousemove', (e) => clientScrollY = e.clientY);
 document.addEventListener('scroll', () => total_scroll = window.scrollY + clientScrollY);
 
