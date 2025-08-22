@@ -302,7 +302,7 @@ function HoverListEffect(globalRenderer) {
     camera.updateProjectionMatrix();
   });
 
-  function update() {
+function update() {
     uniforms.uTime.value = Date.now() * 0.001;
 
     // Smooth mouse offset
@@ -336,17 +336,23 @@ function HoverListEffect(globalRenderer) {
       }
     }
 
-    // Keep mesh under mouse even on scroll
+    // Correct mesh position relative to wrapper and scroll
     const rect = wrapper.getBoundingClientRect();
-    const scrollX = window.scrollX || window.pageXOffset;
-    const scrollY = window.scrollY || window.pageYOffset;
+    const wrapperCenterX = rect.left + rect.width / 2;
+    const wrapperCenterY = rect.top + rect.height / 2;
 
+    // Convert mouse offset to Three.js coordinates
     mesh.position.set(
-      offset.x - rect.width / 2 + mesh.scale.x / 2 - scrollX,
-      rect.height / 2 - offset.y - mesh.scale.y / 2 + scrollY,
+      (offset.x - rect.width / 2) * 1,               // x
+      -(offset.y - rect.height / 2) * 1,             // y (flip)
       0
     );
-  }
+
+    // Offset mesh so it’s centered on wrapper in world space
+    mesh.position.x += wrapperCenterX - window.innerWidth / 2;
+    mesh.position.y += window.innerHeight / 2 - wrapperCenterY;
+}
+
 
   return { scene, camera, update };
 }
