@@ -394,12 +394,11 @@ Buldge Effect
 */ 
 
 
-function CardHoverEffect(renderer, globalScene, globalCamera) {
-  const cards = Array.from(document.querySelectorAll('[webgl-anime="image-hover"]'));
+function CardHoverEffect(renderer) {
+  const wrappers = Array.from(document.querySelectorAll('[webgl-anime="image-hover"]'));
   const loader = new THREE.TextureLoader();
   const planes = [];
 
-  // Shader code
   const vertexShader = `
     varying vec2 vUv;
     void main() {
@@ -407,6 +406,7 @@ function CardHoverEffect(renderer, globalScene, globalCamera) {
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
     }
   `;
+
   const fragmentShader = `
     precision highp float;
     uniform sampler2D uTexture;
@@ -425,14 +425,14 @@ function CardHoverEffect(renderer, globalScene, globalCamera) {
     }
   `;
 
-  cards.forEach(card => {
-    const img = card.querySelector('img');
+  wrappers.forEach(wrapper => {
+    const img = wrapper.querySelector('img');
+    if (!img) return;
+
     const texture = loader.load(img.src);
+    const width = wrapper.offsetWidth;
+    const height = wrapper.offsetHeight;
 
-    const width = card.offsetWidth;
-    const height = card.offsetHeight;
-
-    // Scene & camera for this card
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-width / 2, width / 2, height / 2, -height / 2, 0.1, 10);
     camera.position.z = 1;
@@ -451,25 +451,24 @@ function CardHoverEffect(renderer, globalScene, globalCamera) {
     const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
 
-    planes.push({ card, scene, camera, material });
+    wrapper.appendChild(renderer.domElement); // optional: or attach once globally
+    planes.push({ wrapper, scene, camera, material });
 
-    // Mouse tracking
-    card.addEventListener('mousemove', e => {
-      const rect = card.getBoundingClientRect();
+    wrapper.addEventListener('mousemove', e => {
+      const rect = wrapper.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = 1 - (e.clientY - rect.top) / rect.height;
       material.uniforms.uMouse.value.set(x, y);
       material.uniforms.uHover.value += (1.0 - material.uniforms.uHover.value) * 0.1;
     });
 
-    card.addEventListener('mouseleave', () => {
-      // Smooth fade handled in update loop
+    wrapper.addEventListener('mouseleave', () => {
+      // smooth decay handled in update
     });
 
-    // Responsive
     window.addEventListener('resize', () => {
-      const width = card.offsetWidth;
-      const height = card.offsetHeight;
+      const width = wrapper.offsetWidth;
+      const height = wrapper.offsetHeight;
       camera.left = -width / 2;
       camera.right = width / 2;
       camera.top = height / 2;
@@ -482,15 +481,13 @@ function CardHoverEffect(renderer, globalScene, globalCamera) {
   return {
     update: () => {
       planes.forEach(p => {
-        p.material.uniforms.uHover.value *= 0.9; // smooth decay
+        p.material.uniforms.uHover.value *= 0.9;
         renderer.render(p.scene, p.camera);
       });
     }
   };
 }
 
-// Add effect to global manager
-WebGLEffects.addEffect(CardHoverEffect);
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
@@ -498,24 +495,21 @@ Add all the effects to the function
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */ 
 
-// Wait for DOM to be ready before adding effects
-document.addEventListener('DOMContentLoaded', () => {
-  // Add effects with a small delay to ensure all elements are loaded
-  setTimeout(() => {
-  //  window.WebGLEffects.addEffect(GridAnimeEffect);
 
-    window.WebGLEffects.addEffect(HoverListEffect);
+document.addEventListener('DOMContentLoaded', () => {
+
+  setTimeout(() => {
+   window.WebGLEffects.addEffect(CardHoverEffect);
+   window.WebGLEffects.addEffect(HoverListEffect);
   }, 100);
 });
 
-// Also add effects immediately in case DOM is already loaded
-if (document.readyState === 'loading') {
-  // DOM is still loading, the event listener above will handle it
-} else {
-  // DOM is already loaded
-  setTimeout(() => {
-   // window.WebGLEffects.addEffect(GridAnimeEffect);
 
-    window.WebGLEffects.addEffect(HoverListEffect);
+if (document.readyState === 'loading') {
+
+} else {
+  setTimeout(() => {
+   window.WebGLEffects.addEffect(CardHoverEffect);
+   window.WebGLEffects.addEffect(HoverListEffect);
   }, 100);
 }
