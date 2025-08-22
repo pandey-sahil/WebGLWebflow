@@ -317,71 +317,73 @@ console.log("Mesh scaled and centered for cover");
     });
   });
 
-  // MOUSE MOVE
-  wrapper.addEventListener("mousemove", (e) => {
-    const rect = wrapper.getBoundingClientRect();
-    targetX = e.clientX - rect.left;
-    targetY = e.clientY - rect.top;
-  });
+// MOUSE MOVE
+wrapper.addEventListener("mousemove", (e) => {
+  const rect = wrapper.getBoundingClientRect();
 
-  // RESIZE
-  window.addEventListener("resize", () => {
-    const { clientWidth: w, clientHeight: h } = wrapper;
-    camera.aspect = w / h;
-    camera.fov = (180 * (2 * Math.atan(h / 2 / perspective))) / Math.PI;
-    camera.updateProjectionMatrix();
-  });
+  // Convert to normalized device coordinates (NDC)
+  targetX = ((e.clientX - rect.left) / rect.width) * 2 - 1;   // -1 to 1
+  targetY = -((e.clientY - rect.top) / rect.height) * 2 + 1; // -1 to 1
+});
+
+// RESIZE
+window.addEventListener("resize", () => {
+  const { clientWidth: w, clientHeight: h } = wrapper;
+  camera.aspect = w / h;
+  camera.fov = (180 * (2 * Math.atan(h / 2 / perspective))) / Math.PI;
+  camera.updateProjectionMatrix();
+});
 
 function update() {
-    uniforms.uTime.value = Date.now() * 0.001;
+  uniforms.uTime.value = Date.now() * 0.001;
 
-    // Smooth mouse offset
-    offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
-    offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
+  // Smooth mouse offset
+  offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
+  offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
 
-    uniforms.uOffset.value.set(
-      (targetX - offset.x) * SETTINGS.deformation.strength,
-      -(targetY - offset.y) * SETTINGS.deformation.strength
-    );
+  uniforms.uOffset.value.set(
+    offset.x * SETTINGS.deformation.strength,
+    offset.y * SETTINGS.deformation.strength
+  );
 
-    uniforms.uRGBOffset.value.set(
-      (targetX - offset.x) * 0.001,
-      (targetY - offset.y) * 0.001
-    );
+  uniforms.uRGBOffset.value.set(
+    offset.x * 0.001,
+    offset.y * 0.001
+  );
 
-    // Handle transitions
-    if (transitioning && uniforms.uMixFactor.value < 1.0) {
-      uniforms.uMixFactor.value += SETTINGS.transition.speed;
-      if (uniforms.uMixFactor.value >= 1.0) {
-        transitioning = false;
-        uniforms.uPrevTexture.value = null;
-      }
+  // Handle transitions
+  if (transitioning && uniforms.uMixFactor.value < 1.0) {
+    uniforms.uMixFactor.value += SETTINGS.transition.speed;
+    if (uniforms.uMixFactor.value >= 1.0) {
+      transitioning = false;
+      uniforms.uPrevTexture.value = null;
     }
+  }
 
-    if (fadingOut && uniforms.uAlpha.value > 0.0) {
-      uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
-      if (uniforms.uAlpha.value <= 0.0) {
-        uniforms.uAlpha.value = 0.0;
-        fadingOut = false;
-      }
+  if (fadingOut && uniforms.uAlpha.value > 0.0) {
+    uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
+    if (uniforms.uAlpha.value <= 0.0) {
+      uniforms.uAlpha.value = 0.0;
+      fadingOut = false;
     }
+  }
 
-    // Correct mesh position relative to wrapper and scroll
-    const rect = wrapper.getBoundingClientRect();
-    const wrapperCenterX = rect.left + rect.width / 2;
-    const wrapperCenterY = rect.top + rect.height / 2;
+  // Correct mesh position relative to wrapper
+  const rect = wrapper.getBoundingClientRect();
+  const wrapperCenterX = rect.left + rect.width / 2;
+  const wrapperCenterY = rect.top + rect.height / 2;
 
-    // Convert mouse offset to Three.js coordinates
-    mesh.position.set(
-      (offset.x - rect.width / 2) * 1,               // x
-      -(offset.y - rect.height / 2) * 1,             // y (flip)
-      0
-    );
+  // Convert NDC to world space for mesh positioning
+  mesh.position.set(
+    offset.x * rect.width / 2,                 // x
+    offset.y * rect.height / 2,               // y
+    0
+  );
 
-    // Offset mesh so it’s centered on wrapper in world space
-    mesh.position.x += wrapperCenterX - window.innerWidth / 2;
-    mesh.position.y += window.innerHeight / 2 - wrapperCenterY;
+  mesh.position.x += wrapperCenterX - window.innerWidth / 2;
+  mesh.position.y += window.innerHeight / 2 - wrapperCenterY;
 }
+
 
 
   return { scene, camera, update };
