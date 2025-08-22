@@ -362,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Add effects with a small delay to ensure all elements are loaded
   setTimeout(() => {
     window.WebGLEffects.addEffect(GridAnimeEffect);
-    window.WebGLEffects.addEffect(DistortionEffect);
+
     window.WebGLEffects.addEffect(HoverListEffect);
   }, 100);
 });
@@ -374,7 +374,7 @@ if (document.readyState === 'loading') {
   // DOM is already loaded
   setTimeout(() => {
     window.WebGLEffects.addEffect(GridAnimeEffect);
-    window.WebGLEffects.addEffect(DistortionEffect);
+
     window.WebGLEffects.addEffect(HoverListEffect);
   }, 100);
 }
