@@ -266,21 +266,39 @@ function HoverListEffect(globalRenderer) {
   links.forEach((link, idx) => {
     if (!textures[idx]) return;
     
-    link.addEventListener("mouseenter", () => {
-      uniforms.uPrevTexture.value = uniforms.uTexture.value;
-      uniforms.uTexture.value = textures[idx];
-      uniforms.uAlpha.value = 1.0;
-      uniforms.uMixFactor.value = 0.0;
-      currentIndex = idx;
-      transitioning = true;
-      fadingOut = false;
+link.addEventListener("mouseenter", () => {
+    uniforms.uPrevTexture.value = uniforms.uTexture.value;
+    uniforms.uTexture.value = textures[idx];
+    uniforms.uAlpha.value = 1.0;
+    uniforms.uMixFactor.value = 0.0;
+    currentIndex = idx;
+    transitioning = true;
+    fadingOut = false;
 
-      const img = link.querySelector('[webgl-anime="image-src"]');
-      if (img) {
-        const aspect = img.naturalWidth / img.naturalHeight || 1;
-        mesh.scale.set(SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize, 1);
-      }
-    });
+    const img = link.querySelector('[webgl-anime="image-src"]');
+    if (img) {
+        const imgAspect = img.naturalWidth / img.naturalHeight || 1;
+        const wrapperAspect = wrapper.clientWidth / wrapper.clientHeight;
+
+        const visibleHeight = 2 * perspective * Math.tan((camera.fov * Math.PI) / 360);
+        const visibleWidth = visibleHeight * camera.aspect;
+
+        // Object-fit: cover logic
+        let scaleX, scaleY;
+        if (imgAspect > wrapperAspect) {
+            // image is wider than wrapper → scale width to fill
+            scaleX = visibleWidth;
+            scaleY = visibleWidth / imgAspect;
+        } else {
+            // image is taller than wrapper → scale height to fill
+            scaleY = visibleHeight;
+            scaleX = visibleHeight * imgAspect;
+        }
+
+        mesh.scale.set(scaleX, scaleY, 1);
+    }
+});
+
 
     link.addEventListener("mouseleave", () => {
       fadingOut = true;
