@@ -267,6 +267,7 @@ function HoverListEffect(globalRenderer) {
     if (!textures[idx]) return;
     
 link.addEventListener("mouseenter", () => {
+    console.log("Mouse entered link");
     uniforms.uPrevTexture.value = uniforms.uTexture.value;
     uniforms.uTexture.value = textures[idx];
     uniforms.uAlpha.value = 1.0;
@@ -274,14 +275,20 @@ link.addEventListener("mouseenter", () => {
     currentIndex = idx;
     transitioning = true;
     fadingOut = false;
-
     const img = link.querySelector('[webgl-anime="image-src"]');
-        if (img) {
-        const aspect = img.naturalWidth / img.naturalHeight || 1;
-        // Use the natural height as base and adjust width by aspect
-        mesh.scale.set(aspect * img.naturalHeight, img.naturalHeight, 1);
+    if (img) {
+        const naturalWidth = img.naturalWidth;
+        const naturalHeight = img.naturalHeight;
+        console.log("Image dimensions:", naturalWidth, naturalHeight);
+
+        // Mesh size exactly matches image size
+        mesh.scale.set(naturalWidth, naturalHeight, 1);
+        console.log("Mesh scaled to image size");
+    } else {
+        console.log("No image found inside link");
     }
 });
+
 
 
     link.addEventListener("mouseleave", () => {
