@@ -1,29 +1,23 @@
 import * as THREE from 'three';
 
 function initWebGLDistortion() {
-    const container = document.querySelector("[data-webgl-container]");
-    const canvas = container?.querySelector(".g_canvas_distortion");
-    const image = document.querySelector("[distorted-image]");
+  const container = document.querySelector("[data-webgl-container]");
+  const canvas = container?.querySelector("[webgl-distorted-canvas]");
+  const image = document.querySelector("[data-distorted-image]");
+  if (!container || !canvas || !image) return;
 
-    if (!container || !canvas || !image) {
-        console.error("Required elements not found");
-        return;
-    }
+  // ==== SETTINGS ====
+  const settings = {
+    falloff: 0.12, alpha: 0.97, dissipation: 0.965,
+    distortionStrength: parseFloat(container.dataset.distortionStrength) || 0.08,
+    chromaticAberration: 0.002, chromaticSpread: 0.6,
+    velocityScale: 0.6, velocityDamping: 0.85,
+    mouseRadius: 0.1, motionBlurStrength: 0.35,
+    motionBlurDecay: 0.88, motionBlurThreshold: 0.5
+  };
 
-    const settings = {
-        falloff: 0.12,  // smaller circle falloff
-        alpha: 0.97,
-        dissipation: 0.965,
-        distortionStrength: parseFloat(container.dataset.distortionStrength) || 0.08,
-        chromaticAberration: 0.002, // reduced flashes
-        chromaticSpread: 0.6,       // reduced spread
-        velocityScale: 0.6,
-        velocityDamping: 0.85,
-        mouseRadius: 0.1,           // smaller ripple radius
-        motionBlurStrength: 0.35,
-        motionBlurDecay: 0.88,
-        motionBlurThreshold: 0.5
-    };
+  // ==== SHADERS ====
+
 
     const flowmapFragment = `
         uniform vec2 uMouse;
@@ -192,200 +186,132 @@ function initWebGLDistortion() {
         }
     `;
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    const renderer = new THREE.WebGLRenderer({
-        canvas: canvas,
-        alpha: true,
-        antialias: false,
-        preserveDrawingBuffer: false
+  // ==== CORE ====
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha:true, antialias:false });
+  renderer.setClearColor(0,0);
+
+  const mouse = {
+    current:new THREE.Vector2(-1,-1),
+    target:new THREE.Vector2(-1,-1),
+    velocity:new THREE.Vector2(),
+    last:new THREE.Vector2(-1,-1),
+    smooth:new THREE.Vector2()
+  };
+
+  let flowmapA, flowmapB, displayA, displayB, mesh, isFirstFrame=true;
+  let flowmapMat, distortionMat;
+
+  // ==== HELPERS ====
+  function createRT(w,h){
+    const type = renderer.capabilities.isWebGL2 ? THREE.HalfFloatType : THREE.UnsignedByteType;
+    return new THREE.WebGLRenderTarget(w,h,{
+      minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter,
+      format:THREE.RGBAFormat, type
     });
-    renderer.setClearColor(0, 0);
+  }
 
-    const mouse = {
-        current: new THREE.Vector2(-1, -1),
-        target: new THREE.Vector2(-1, -1),
-        velocity: new THREE.Vector2(0, 0),
-        lastPosition: new THREE.Vector2(-1, -1),
-        smoothVelocity: new THREE.Vector2(0, 0)
-    };
+  function setup(imageTex){
+    // Materials
+    flowmapMat = new THREE.ShaderMaterial({
+      vertexShader, fragmentShader:flowmapFragment,
+      uniforms:{
+        uMouse:{value:mouse.current}, uVelocity:{value:mouse.velocity},
+        uResolution:{value:new THREE.Vector2()},
+        uFalloff:{value:settings.falloff}, uAlpha:{value:settings.alpha},
+        uDissipation:{value:settings.dissipation}, uAspect:{value:1},
+        uTexture:{value:null}, uTime:{value:0}
+      }
+    });
+    distortionMat = new THREE.ShaderMaterial({
+      vertexShader, fragmentShader:distortionFragment, transparent:true,
+      uniforms:{
+        uLogo:{value:imageTex}, uFlowmap:{value:null}, uPreviousFrame:{value:null},
+        uImageScale:{value:new THREE.Vector2(1,1)}, uImageOffset:{value:new THREE.Vector2(0,0)},
+        uDistortionStrength:{value:settings.distortionStrength},
+        uChromaticAberration:{value:settings.chromaticAberration},
+        uChromaticSpread:{value:settings.chromaticSpread},
+        uResolution:{value:new THREE.Vector2()},
+        uMotionBlurStrength:{value:settings.motionBlurStrength},
+        uMotionBlurDecay:{value:settings.motionBlurDecay},
+        uMotionBlurThreshold:{value:settings.motionBlurThreshold},
+        uIsFirstFrame:{value:true}, uTime:{value:0}
+      }
+    });
 
-    let flowmapA, flowmapB, displayA, displayB;
-    let logoTexture, flowmapMaterial, distortionMaterial, flowmapMesh;
-    let isInitialized = false;
-    let isFirstFrame = true;
+    // Targets
+    flowmapA = createRT(128,128); flowmapB = createRT(128,128);
+    const w=Math.min(container.clientWidth,512), h=Math.min(container.clientHeight,512);
+    displayA=createRT(w,h); displayB=createRT(w,h);
 
-    function loadTexture() {
-        const loader = new THREE.TextureLoader();
-        loader.crossOrigin = 'anonymous';
-        loader.load(image.src, onTextureLoaded);
-    }
+    // Mesh
+    mesh = new THREE.Mesh(new THREE.PlaneGeometry(2,2), flowmapMat);
 
-    function onTextureLoaded(texture) {
-        logoTexture = texture;
-        logoTexture.minFilter = THREE.LinearFilter;
-        logoTexture.magFilter = THREE.LinearFilter;
-        logoTexture.wrapS = THREE.ClampToEdgeWrapping;
-        logoTexture.wrapT = THREE.ClampToEdgeWrapping;
+    // Events
+    container.addEventListener("mousemove",e=>{
+      const r=container.getBoundingClientRect();
+      mouse.target.set((e.clientX-r.left)/r.width,1-(e.clientY-r.top)/r.height);
+    });
+    container.addEventListener("mouseenter",e=>{
+      const r=container.getBoundingClientRect();
+      const x=(e.clientX-r.left)/r.width, y=1-(e.clientY-r.top)/r.height;
+      mouse.current.set(x,y); mouse.target.set(x,y); mouse.last.set(x,y);
+    });
+    container.addEventListener("mouseleave",()=>mouse.target.set(-1,-1));
+    window.addEventListener("resize",onResize);
 
-        createMaterials();
-        createRenderTargets();
-        createMesh();
-        setupEventListeners();
-        onResize();
-        isInitialized = true;
-        animate();
-    }
+    onResize(); animate();
+  }
 
-    function createMaterials() {
-        flowmapMaterial = new THREE.ShaderMaterial({
-            vertexShader: vertexShader,
-            fragmentShader: flowmapFragment,
-            uniforms: {
-                uMouse: { value: mouse.current.clone() },
-                uVelocity: { value: mouse.velocity.clone() },
-                uResolution: { value: new THREE.Vector2() },
-                uFalloff: { value: settings.falloff },
-                uAlpha: { value: settings.alpha },
-                uDissipation: { value: settings.dissipation },
-                uAspect: { value: 1 },
-                uTexture: { value: null },
-                uTime: { value: 0 }
-            }
-        });
+  function onResize(){
+    const {clientWidth:w, clientHeight:h} = container;
+    renderer.setSize(w,h); renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    flowmapMat.uniforms.uResolution.value.set(w,h);
+    flowmapMat.uniforms.uAspect.value = w/h;
+    distortionMat.uniforms.uResolution.value.set(w,h);
+  }
 
-        distortionMaterial = new THREE.ShaderMaterial({
-            vertexShader: vertexShader,
-            fragmentShader: distortionFragment,
-            uniforms: {
-                uLogo: { value: logoTexture },
-                uFlowmap: { value: null },
-                uPreviousFrame: { value: null },
-                uImageScale: { value: new THREE.Vector2(1, 1) },
-                uImageOffset: { value: new THREE.Vector2(0, 0) },
-                uDistortionStrength: { value: settings.distortionStrength },
-                uChromaticAberration: { value: settings.chromaticAberration },
-                uChromaticSpread: { value: settings.chromaticSpread },
-                uResolution: { value: new THREE.Vector2() },
-                uMotionBlurStrength: { value: settings.motionBlurStrength },
-                uMotionBlurDecay: { value: settings.motionBlurDecay },
-                uMotionBlurThreshold: { value: settings.motionBlurThreshold },
-                uIsFirstFrame: { value: true },
-                uTime: { value: 0 }
-            },
-            transparent: true
-        });
-    }
+  function updateMouse(){
+    mouse.last.copy(mouse.current);
+    mouse.current.lerp(mouse.target,0.7);
+    const d=new THREE.Vector2(mouse.current.x-mouse.last.x,mouse.current.y-mouse.last.y).multiplyScalar(80);
+    mouse.velocity.lerp(d,0.6).multiplyScalar(settings.velocityDamping);
+    mouse.smooth.lerp(mouse.velocity,0.3);
+  }
 
-    function createRenderTargets() {
-        const type = renderer.capabilities.isWebGL2 ? THREE.HalfFloatType : THREE.UnsignedByteType;
-        const options = {
-            minFilter: THREE.LinearFilter,
-            magFilter: THREE.LinearFilter,
-            format: THREE.RGBAFormat,
-            type: type
-        };
+  function render(){
+    updateMouse();
+    const t=performance.now()*0.001;
+    flowmapMat.uniforms.uTime.value=t;
+    distortionMat.uniforms.uTime.value=t;
+    flowmapMat.uniforms.uMouse.value.copy(mouse.current);
+    flowmapMat.uniforms.uVelocity.value.copy(mouse.smooth).multiplyScalar(settings.velocityScale);
 
-        const flowmapSize = 128;
-        flowmapA = new THREE.WebGLRenderTarget(flowmapSize, flowmapSize, options);
-        flowmapB = new THREE.WebGLRenderTarget(flowmapSize, flowmapSize, options);
+    mesh.material=flowmapMat; flowmapMat.uniforms.uTexture.value=flowmapB.texture;
+    renderer.setRenderTarget(flowmapA); renderer.render(mesh,camera);
 
-        const displayWidth = Math.min(container.clientWidth, 512);
-        const displayHeight = Math.min(container.clientHeight, 512);
-        displayA = new THREE.WebGLRenderTarget(displayWidth, displayHeight, options);
-        displayB = new THREE.WebGLRenderTarget(displayWidth, displayHeight, options);
-    }
+    mesh.material=distortionMat;
+    distortionMat.uniforms.uFlowmap.value=flowmapA.texture;
+    distortionMat.uniforms.uPreviousFrame.value=displayB.texture;
+    distortionMat.uniforms.uIsFirstFrame.value=isFirstFrame;
+    renderer.setRenderTarget(displayA); renderer.render(mesh,camera);
 
-    function createMesh() {
-        const geometry = new THREE.PlaneGeometry(2, 2);
-        flowmapMesh = new THREE.Mesh(geometry, flowmapMaterial);
-    }
+    renderer.setRenderTarget(null); renderer.render(mesh,camera);
 
-    function setupEventListeners() {
-        container.addEventListener('mousemove', e => {
-            const rect = container.getBoundingClientRect();
-            mouse.target.set(
-                (e.clientX - rect.left) / rect.width,
-                1 - (e.clientY - rect.top) / rect.height
-            );
-        });
-        container.addEventListener('mouseenter', e => {
-            const rect = container.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / rect.width;
-            const y = 1 - (e.clientY - rect.top) / rect.height;
-            mouse.current.set(x, y);
-            mouse.target.set(x, y);
-            mouse.lastPosition.set(x, y);
-        });
-        container.addEventListener('mouseleave', () => {
-            mouse.target.set(-1, -1);
-        });
-        window.addEventListener('resize', onResize);
-    }
+    [flowmapA,flowmapB]=[flowmapB,flowmapA];
+    [displayA,displayB]=[displayB,displayA];
+    isFirstFrame=false;
+  }
 
-    function updateMouse() {
-        mouse.lastPosition.copy(mouse.current);
-        mouse.current.lerp(mouse.target, 0.7);
-        const delta = new THREE.Vector2(
-            mouse.current.x - mouse.lastPosition.x,
-            mouse.current.y - mouse.lastPosition.y
-        );
-        delta.multiplyScalar(80);
-        mouse.velocity.lerp(delta, 0.6);
-        mouse.smoothVelocity.lerp(mouse.velocity, 0.3);
-        mouse.velocity.multiplyScalar(settings.velocityDamping);
-    }
+  function animate(){ render(); requestAnimationFrame(animate); }
 
-    function onResize() {
-        const { clientWidth, clientHeight } = container;
-        renderer.setSize(clientWidth, clientHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        const aspect = clientWidth / clientHeight;
-        flowmapMaterial.uniforms.uResolution.value.set(clientWidth, clientHeight);
-        flowmapMaterial.uniforms.uAspect.value = aspect;
-        distortionMaterial.uniforms.uResolution.value.set(clientWidth, clientHeight);
-    }
-
-    function render() {
-        if (!isInitialized) return;
-        updateMouse();
-
-        const time = performance.now() * 0.001;
-        flowmapMaterial.uniforms.uTime.value = time;
-        distortionMaterial.uniforms.uTime.value = time;
-
-        flowmapMaterial.uniforms.uMouse.value.copy(mouse.current);
-        flowmapMaterial.uniforms.uVelocity.value.copy(mouse.smoothVelocity);
-        flowmapMaterial.uniforms.uVelocity.value.multiplyScalar(settings.velocityScale);
-
-        flowmapMesh.material = flowmapMaterial;
-        flowmapMaterial.uniforms.uTexture.value = flowmapB.texture;
-        renderer.setRenderTarget(flowmapA);
-        renderer.render(flowmapMesh, camera);
-
-        flowmapMesh.material = distortionMaterial;
-        distortionMaterial.uniforms.uFlowmap.value = flowmapA.texture;
-        distortionMaterial.uniforms.uPreviousFrame.value = displayB.texture;
-        distortionMaterial.uniforms.uIsFirstFrame.value = isFirstFrame;
-        renderer.setRenderTarget(displayA);
-        renderer.render(flowmapMesh, camera);
-
-        renderer.setRenderTarget(null);
-        renderer.render(flowmapMesh, camera);
-
-        [flowmapA, flowmapB] = [flowmapB, flowmapA];
-        [displayA, displayB] = [displayB, displayA];
-        isFirstFrame = false;
-    }
-
-    function animate() {
-        render();
-        requestAnimationFrame(animate);
-    }
-
-    loadTexture();
+  // ==== LOAD IMAGE ====
+  new THREE.TextureLoader().load(image.src, tex=>{
+    tex.minFilter=THREE.LinearFilter; tex.magFilter=THREE.LinearFilter;
+    tex.wrapS=tex.wrapT=THREE.ClampToEdgeWrapping;
+    setup(tex);
+  });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    initWebGLDistortion();
-});
+document.addEventListener("DOMContentLoaded",initWebGLDistortion);
