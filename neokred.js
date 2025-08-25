@@ -141,45 +141,35 @@ loader.load(
 });
 
 
-    // Section 3 → Infinite spin
-    ScrollTrigger.create({
-      trigger: "#section3",
-      start: "top center",
-      end: "bottom center",
-      onEnter: () => {
-        savedRotationSection3 = pivot.rotation.y;
-        console.log("Saved rotation Section 3:", savedRotationSection3);
-        gsap.to(pivot.position, { y: -0.08, duration: 1 });
-        gsap.to(pivot.rotation, {
-          y: "-=6.283", // full spin
-          duration: 15,
-          ease: "linear",
-          repeat: -1
-        });
-      },
-      onLeave: () => {
-        console.log("Leaving Section 3 → restore Section 3 rotation");
-        gsap.killTweensOf(pivot.rotation);
-        gsap.to(pivot.rotation, {
-          y: savedRotationSection3,
-          duration: 0.5,
-          ease: "power2.out"
-        });
-      },
-      onLeaveBack: () => {
-        console.log("Scrolling back from Section 3 → restore Section 2 rotation");
-        gsap.killTweensOf(pivot.rotation);
-        gsap.to(pivot.rotation, {
-          y: savedRotationSection2,
-          duration: 0.5,
-          ease: "power2.out"
-        });
-      }
+ // Section 3 → Infinite spin
+ScrollTrigger.create({
+  trigger: "#section3",
+  start: "top center",
+  end: "bottom center",
+  onEnter: () => {
+    savedRotationSection3 = pivot.rotation.y;
+    console.log("Saved rotation Section 3:", savedRotationSection3);
+
+    gsap.to(pivot.position, { y: -0.08, duration: 1 });
+
+    gsap.to(pivot.rotation, {
+      y: "-=6.283", // full spin
+      duration: 15,
+      ease: "linear",
+      repeat: -1
     });
   },
-  undefined,
-  (err) => console.error("GLTF load error", err)
-);
+  // 👇 Sirf upar aate waqt restore karo
+  onLeaveBack: () => {
+    console.log("Scrolling back from Section 3 → restore Section 2 rotation");
+    gsap.killTweensOf(pivot.rotation);
+    gsap.to(pivot.rotation, {
+      y: savedRotationSection2,
+      duration: 0.5,
+      ease: "power2.out"
+    });
+  }
+});
 
 // Animate
 function animate() {
