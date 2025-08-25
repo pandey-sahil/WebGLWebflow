@@ -64,8 +64,8 @@ loader.load(
     });
 
     // ✅ Initial camera (dead center, no tilt)
-    camera.position.set(0, 30, 2.7);
-    camera.lookAt(30, 0, 0);
+    camera.position.set(0, -2, 2.7);
+    camera.lookAt(0, 0, 0);
 
     // -----------------
     // GSAP + ScrollTrigger
@@ -82,8 +82,8 @@ loader.load(
         savedRotationSection1 = pivot.rotation.y;
         console.log("Saved rotation Section 1:", savedRotationSection1);
         gsap.to(camera.position, {
-          x: 0,
-          y: 0,
+          x: 1,
+          y: 1,
           z: 2.7,
           onUpdate: () => camera.lookAt(0, 0, 0),
           overwrite: "auto"
