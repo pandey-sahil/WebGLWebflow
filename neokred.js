@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three"; 
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 // Scene
@@ -13,13 +13,13 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.getElementById("three-container").appendChild(renderer.domElement);
 
-// Ambient light (soft base illumination)
+// Ambient light
 const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
 scene.add(ambientLight);
 
-// Direct light (acts like sunlight / main directional light)
+// Direct light
 const directLight = new THREE.DirectionalLight(0xffffff, 1.5);
-directLight.position.set(2, 5, 10); // 👈 pick a diagonal angle
+directLight.position.set(2, 5, 10);
 scene.add(directLight);
 scene.add(directLight.target);
 
@@ -29,7 +29,13 @@ scene.add(pivot);
 
 // Loader
 const loader = new GLTFLoader();
-let model, spinTween;
+let model;
+
+// Saved states
+let savedRotationSection1 = 0;
+let savedRotationSection2 = 0;
+let savedRotationSection3 = 0;
+
 loader.load(
   "https://web-gl-webflow.vercel.app/qr-machine.glb",
   (gltf) => {
@@ -41,15 +47,15 @@ loader.load(
     const center = box.getCenter(new THREE.Vector3());
     model.position.sub(center);
 
-    // Enable shadows
+    // Material cleanup
     model.traverse((child) => {
       if (child.isMesh && child.material) {
         if (
           child.material.isMeshStandardMaterial ||
           child.material.isMeshPhysicalMaterial
         ) {
-          child.material.metalness = 0.01; // no metallic shine
-          child.material.roughness = 0.1; // fully matte
+          child.material.metalness = 0.01;
+          child.material.roughness = 0.1;
         }
       }
     });
@@ -58,81 +64,105 @@ loader.load(
     camera.position.set(-0.5, -0.15, 2.5);
     camera.lookAt(0, -0.15, 0);
 
+    // -----------------
     // GSAP + ScrollTrigger
+    // -----------------
     gsap.registerPlugin(ScrollTrigger);
 
-    // Section 1 → move camera slightly
-    gsap.to(camera.position, {
-      scrollTrigger: {
-        trigger: "#section1",
-        start: "top center",
-        end: "bottom center",
-        scrub: true,
-      },
-      x: 1,
-      y: 1,
-      z: 2.7,
-      onUpdate: () => camera.lookAt(0, -0.15, 0),
-    });
-
-    // Section 2 → shift model down
-    gsap.to(pivot.position, {
-      scrollTrigger: {
-        trigger: "#section2",
-        start: "top center",
-        end: "bottom center",
-        // scrub: true,
-      },
-      y: -0.01,
-      onUpdate: () => camera.lookAt(0, -0.15, 0),
-    });
-
-    //Section2 rotation
-    gsap.to(pivot.rotation, {
-      scrollTrigger: {
-        trigger: "#section2",
-        start: "top center",
-        end: "bottom center",
-        scrub: true,
-      },
-      y: THREE.MathUtils.degToRad(-30), // 60° rotation
-      ease: "linear",
-    });
-
-    let savedRotationY;
-
+    // Section 1 → Camera move
     ScrollTrigger.create({
-      trigger: "#section3",
+      trigger: "#section1",
       start: "top center",
       end: "bottom center",
-      markers: true,
+      scrub: true,
       onEnter: () => {
-        savedRotationY = pivot.rotation.y; // position save
-        gsap.to(pivot.position, { y: -0.08, duration: 1 });
+        savedRotationSection1 = pivot.rotation.y;
+        gsap.to(camera.position, {
+          x: 1,
+          y: 1,
+          z: 2.7,
+          onUpdate: () => camera.lookAt(0, -0.15, 0),
+          overwrite: "auto"
+        });
+      },
+      onLeaveBack: () => {
+        gsap.to(camera.position, {
+          x: -0.5,
+          y: -0.15,
+          z: 2.5,
+          onUpdate: () => camera.lookAt(0, -0.15, 0),
+          overwrite: "auto"
+        });
+      }
+    });
+
+    // Section 2 → Pivot shift + rotation
+    ScrollTrigger.create({
+      trigger: "#section2",
+      start: "top center",
+      end: "bottom center",
+      scrub: true,
+      onEnter: () => {
+        savedRotationSection2 = pivot.rotation.y;
+        gsap.to(pivot.position, {
+          y: -0.01,
+          overwrite: "auto"
+        });
         gsap.to(pivot.rotation, {
-          y: "-=6.283",
-          duration: 15,
+          y: THREE.MathUtils.degToRad(-30),
           ease: "linear",
-          repeat: -1,
+          overwrite: "auto"
         });
       },
       onLeave: () => {
         gsap.killTweensOf(pivot.rotation);
-        // Smooth transition back to saved position
         gsap.to(pivot.rotation, {
-          y: savedRotationY,
+          y: savedRotationSection2,
           duration: 0.5,
-          ease: "power2.out",
+          ease: "power2.out"
         });
       },
       onLeaveBack: () => {
         gsap.killTweensOf(pivot.rotation);
         gsap.to(pivot.rotation, {
-          y: savedRotationY,
+          y: savedRotationSection1,
           duration: 0.5,
-          ease: "power2.out",
+          ease: "power2.out"
+        });
+      }
+    });
+
+    // Section 3 → Infinite spin
+    ScrollTrigger.create({
+      trigger: "#section3",
+      start: "top center",
+      end: "bottom center",
+      onEnter: () => {
+        savedRotationSection3 = pivot.rotation.y;
+        gsap.to(pivot.position, { y: -0.08, duration: 1 });
+        gsap.to(pivot.rotation, {
+          y: "-=6.283", // full spin
+          duration: 15,
+          ease: "linear",
+          repeat: -1
         });
       },
+      onLeave: () => {
+        gsap.killTweensOf(pivot.rotation);
+        gsap.to(pivot.rotation, {
+          y: savedRotationSection3,
+          duration: 0.5,
+          ease: "power2.out"
+        });
+      },
+      onLeaveBack: () => {
+        gsap.killTweensOf(pivot.rotation);
+        gsap.to(pivot.rotation, {
+          y: savedRotationSection2,
+          duration: 0.5,
+          ease: "power2.out"
+        });
+      }
     });
   },
   undefined,
