@@ -390,7 +390,7 @@ function HoverListEffect(globalRenderer) {
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 Buldge Effect
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-*/ 
+
 function CardHoverEffect(renderer) {
   const wrappers = Array.from(document.querySelectorAll('[webgl-anime="image-hover"]'));
   console.log("CardHoverEffect: Found wrappers", wrappers.length);
@@ -509,6 +509,130 @@ return {
   }
 };
 }
+*/ 
+
+function initBludge(){
+
+     const cards = Array.from(
+        document.querySelectorAll('[webgl-anime="image-hover"]')
+      );
+      const loader = new THREE.TextureLoader();
+      const planes = [];
+
+      // Shader code
+      const vertexShader = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+}
+`;
+
+      const fragmentShader = `
+precision highp float;
+uniform sampler2D uTexture;
+uniform vec2 uMouse;
+uniform float uHover;
+varying vec2 vUv;
+void main() {
+  vec2 uv = vUv;
+  vec2 diff = uv - uMouse;
+  float dist = length(diff);
+  uv -= diff * 0.25 * uHover * exp(-3.0*dist*dist);
+  vec4 color = texture2D(uTexture, uv);
+  float glow = exp(-3.0*dist*dist) * 0.25;
+  color.rgb += glow;
+  gl_FragColor = color;
+}
+`;
+
+      cards.forEach((card) => {
+        const img = card.querySelector("img");
+        const texture = loader.load(img.src);
+
+        const width = card.offsetWidth;
+        const height = card.offsetHeight;
+
+        // Scene, camera, renderer per card
+        const scene = new THREE.Scene();
+        const camera = new THREE.OrthographicCamera(
+          -width / 2,
+          width / 2,
+          height / 2,
+          -height / 2,
+          0.1,
+          10
+        );
+        camera.position.z = 1;
+
+const renderer = new THREE.WebGLRenderer({
+  alpha: true,
+  antialias: true,
+});
+renderer.setSize(width, height);
+renderer.setPixelRatio(window.devicePixelRatio);
+
+// Add class
+renderer.domElement.classList.add("work-canvas");
+
+card.appendChild(renderer.domElement);
+
+
+        const geometry = new THREE.PlaneGeometry(width, height);
+        const material = new THREE.ShaderMaterial({
+          uniforms: {
+            uTexture: { value: texture },
+            uMouse: { value: new THREE.Vector2(-1, -1) },
+            uHover: { value: 0 },
+          },
+          vertexShader,
+          fragmentShader,
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+
+        planes.push({ card, renderer, scene, camera, material });
+
+        // Mouse move
+        card.addEventListener("mousemove", (e) => {
+          const rect = card.getBoundingClientRect();
+          const x = (e.clientX - rect.left) / rect.width;
+          const y = 1 - (e.clientY - rect.top) / rect.height;
+          material.uniforms.uMouse.value.set(x, y);
+          material.uniforms.uHover.value +=
+            (1.0 - material.uniforms.uHover.value) * 0.1;
+        });
+
+        // Mouse leave
+        card.addEventListener("mouseleave", () => {
+          // Let animate loop gradually decay uHover
+        });
+
+        function animate() {
+          requestAnimationFrame(animate);
+
+          // Smooth hover fade
+          material.uniforms.uHover.value *= 0.9;
+
+          renderer.render(scene, camera);
+        }
+        animate();
+
+        // Responsive
+        window.addEventListener("resize", () => {
+          const width = card.offsetWidth;
+          const height = card.offsetHeight;
+          renderer.setSize(width, height);
+          camera.left = -width / 2;
+          camera.right = width / 2;
+          camera.top = height / 2;
+          camera.bottom = -height / 2;
+          camera.updateProjectionMatrix();
+          mesh.scale.set(width, height, 1);
+        });
+      });
+}
 
 
 
@@ -522,7 +646,8 @@ Add all the effects to the function
 document.addEventListener('DOMContentLoaded', () => {
 
   setTimeout(() => {
-   window.WebGLEffects.addEffect(CardHoverEffect);
+     initBludge()
+ //   window.WebGLEffects.addEffect(CardHoverEffect);
    window.WebGLEffects.addEffect(HoverListEffect);
   }, 100);
 });
@@ -532,7 +657,8 @@ if (document.readyState === 'loading') {
 
 } else {
   setTimeout(() => {
-   window.WebGLEffects.addEffect(CardHoverEffect);
+   // window.WebGLEffects.addEffect(CardHoverEffect);
+     initBludge()
    window.WebGLEffects.addEffect(HoverListEffect);
   }, 100);
 }
