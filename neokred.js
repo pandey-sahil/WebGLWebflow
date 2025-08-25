@@ -1,3 +1,4 @@
+//Working Fine
 import * as THREE from "three"; 
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
@@ -61,9 +62,11 @@ loader.load(
     });
 
     // Initial camera (dead center)
-    camera.position.set(0, -0.15, 2.5);
+    //camera.position.set(0, -0.15, 2.5);
+   // camera.lookAt(0, -0.15, 0);
+    camera.position.set(-0.5, -0.15, 2.5);
     camera.lookAt(0, -0.15, 0);
-
+    
     // -----------------
     // GSAP + ScrollTrigger
     // -----------------
