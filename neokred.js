@@ -1,6 +1,5 @@
-//Working Fine
 import * as THREE from "three"; 
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"; // ✅ matches your importmap
 
 // Scene
 const scene = new THREE.Scene();
@@ -48,6 +47,9 @@ loader.load(
     const center = box.getCenter(new THREE.Vector3());
     model.position.sub(center);
 
+    // ✅ Reset rotation so it's perfectly front-facing
+    model.rotation.set(0, 0, 0);
+
     // Material cleanup
     model.traverse((child) => {
       if (child.isMesh && child.material) {
@@ -61,12 +63,10 @@ loader.load(
       }
     });
 
-    // Initial camera (dead center)
-    //camera.position.set(0, -0.15, 2.5);
-   // camera.lookAt(0, -0.15, 0);
-    camera.position.set(-0.5, -0.15, 2.5);
-    camera.lookAt(0, -0.15, 0);
-    
+    // ✅ Initial camera (dead center, no tilt)
+    camera.position.set(0, 0, 2.5);
+    camera.lookAt(0, 0, 0);
+
     // -----------------
     // GSAP + ScrollTrigger
     // -----------------
@@ -85,7 +85,7 @@ loader.load(
           x: 1,
           y: 1,
           z: 2.7,
-          onUpdate: () => camera.lookAt(0, -0.15, 0),
+          onUpdate: () => camera.lookAt(0, 0, 0),
           overwrite: "auto"
         });
       },
@@ -93,9 +93,9 @@ loader.load(
         console.log("Returning to initial (before Section 1)");
         gsap.to(camera.position, {
           x: 0,
-          y: -0.15,
+          y: 0,
           z: 2.5,
-          onUpdate: () => camera.lookAt(0, -0.15, 0),
+          onUpdate: () => camera.lookAt(0, 0, 0),
           overwrite: "auto"
         });
       }
@@ -175,8 +175,8 @@ loader.load(
         });
       }
     });
-  }
-);   
+  } // closes (gltf) => { ... }
+);   // closes loader.load(...)
 
 // Animate
 function animate() {
