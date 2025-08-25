@@ -64,7 +64,7 @@ loader.load(
     });
 
     // ✅ Initial camera (dead center, no tilt)
-    camera.position.set(0, -1.8, 2.6);
+    camera.position.set(0, -2, 2.6);
     camera.lookAt(0, 0, 0);
 
     // -----------------
