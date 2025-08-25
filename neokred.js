@@ -100,42 +100,46 @@ loader.load(
 
     // Section 2 → Pivot shift + rotation
     ScrollTrigger.create({
-      trigger: "#section2",
-      start: "top center",
-      end: "bottom center",
-      scrub: true,
-      onEnter: () => {
+  trigger: "#section2",
+  start: "top center",
+  end: "bottom center",
+  scrub: true,
+  onEnter: () => {
+    console.log("Entering Section 2");
+    gsap.to(pivot.position, {
+      y: -0.01,
+      overwrite: "auto"
+    });
+    gsap.to(pivot.rotation, {
+      y: THREE.MathUtils.degToRad(-30),
+      ease: "linear",
+      overwrite: "auto",
+      onComplete: () => {
         savedRotationSection2 = pivot.rotation.y;
-        console.log("Saved rotation Section 2:", savedRotationSection2);
-        gsap.to(pivot.position, {
-          y: -0.01,
-          overwrite: "auto"
-        });
-        gsap.to(pivot.rotation, {
-          y: THREE.MathUtils.degToRad(-30),
-          ease: "linear",
-          overwrite: "auto"
-        });
-      },
-      onLeave: () => {
-        console.log("Leaving Section 2 → restore Section 2 rotation");
-        gsap.killTweensOf(pivot.rotation);
-        gsap.to(pivot.rotation, {
-          y: savedRotationSection2,
-          duration: 0.5,
-          ease: "power2.out"
-        });
-      },
-      onLeaveBack: () => {
-        console.log("Scrolling back from Section 2 → restore Section 1 rotation");
-        gsap.killTweensOf(pivot.rotation);
-        gsap.to(pivot.rotation, {
-          y: savedRotationSection1,
-          duration: 0.5,
-          ease: "power2.out"
-        });
+        console.log("✅ Saved rotation Section 2 (after tween):", savedRotationSection2);
       }
     });
+  },
+  onLeave: () => {
+    console.log("Leaving Section 2 → restore Section 2 rotation", savedRotationSection2);
+    gsap.killTweensOf(pivot.rotation);
+    gsap.to(pivot.rotation, {
+      y: savedRotationSection2,
+      duration: 0.5,
+      ease: "power2.out"
+    });
+  },
+  onLeaveBack: () => {
+    console.log("Scrolling back from Section 2 → restore Section 1 rotation", savedRotationSection1);
+    gsap.killTweensOf(pivot.rotation);
+    gsap.to(pivot.rotation, {
+      y: savedRotationSection1,
+      duration: 0.5,
+      ease: "power2.out"
+    });
+  }
+});
+
 
     // Section 3 → Infinite spin
     ScrollTrigger.create({
