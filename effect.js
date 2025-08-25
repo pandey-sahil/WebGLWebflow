@@ -563,7 +563,10 @@ void main() {
       return;
     }
 
-    const texture = loader.load(img.src);
+    const texture = loader.load(img.src, () => {
+      console.log("Texture loaded for card", i);
+      img.style.opacity = "0"; // hide original image once texture is ready
+    });
 
     const width = card.offsetWidth;
     const height = card.offsetHeight;
@@ -592,18 +595,20 @@ void main() {
     card.appendChild(renderer.domElement);
     console.log("Added canvas to card", i);
 
-    const geometry = new THREE.PlaneGeometry(width, height);
     const material = new THREE.ShaderMaterial({
       uniforms: {
         uTexture: { value: texture },
-        uMouse: { value: new THREE.Vector2(-1, -1) },
+        uMouse: { value: new THREE.Vector2(0.5, 0.5) }, // start centered
         uHover: { value: 0 },
       },
       vertexShader,
       fragmentShader,
     });
 
+    // Plane at unit scale, then scale to card size
+    const geometry = new THREE.PlaneGeometry(1, 1);
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.scale.set(width, height, 1);
     scene.add(mesh);
 
     planes.push({ card, renderer, scene, camera, material });
@@ -615,7 +620,7 @@ void main() {
       const y = 1 - (e.clientY - rect.top) / rect.height;
       material.uniforms.uMouse.value.set(x, y);
       material.uniforms.uHover.value +=
-        (1.0 - material.uniforms.uHover.value) * 0.1;
+        (1.0 - material.uniforms.uHover.value) * 0.2;
     });
 
     card.addEventListener("mouseleave", () => {
@@ -624,7 +629,7 @@ void main() {
 
     function animate() {
       requestAnimationFrame(animate);
-      material.uniforms.uHover.value *= 0.9;
+      material.uniforms.uHover.value *= 0.97; // slower fade so it’s visible
       renderer.render(scene, camera);
     }
     animate();
@@ -647,7 +652,7 @@ void main() {
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-Add all the effects to the function
+Attach effects on load
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */
 
@@ -668,3 +673,4 @@ if (document.readyState !== "loading") {
     window.WebGLEffects.addEffect(HoverListEffect);
   }, 100);
 }
+
