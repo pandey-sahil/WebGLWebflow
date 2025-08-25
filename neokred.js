@@ -61,8 +61,9 @@ loader.load(
     });
 
     // Initial camera
-    camera.position.set(-0.5, -0.15, 2.5);
-    camera.lookAt(0, -0.15, 0);
+camera.position.set(0, -0.15, 2.5);
+camera.lookAt(0, -0.15, 0);
+
 
     // -----------------
     // GSAP + ScrollTrigger
