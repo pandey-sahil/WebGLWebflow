@@ -1,4 +1,3 @@
-// Final Fixed
 import * as THREE from "three"; 
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
@@ -61,10 +60,9 @@ loader.load(
       }
     });
 
-    // Initial camera
-camera.position.set(0, -0.15, 2.5);
-camera.lookAt(0, -0.15, 0);
-
+    // Initial camera (dead center)
+    camera.position.set(0, -0.15, 2.5);
+    camera.lookAt(0, -0.15, 0);
 
     // -----------------
     // GSAP + ScrollTrigger
@@ -79,6 +77,7 @@ camera.lookAt(0, -0.15, 0);
       scrub: true,
       onEnter: () => {
         savedRotationSection1 = pivot.rotation.y;
+        console.log("Saved rotation Section 1:", savedRotationSection1);
         gsap.to(camera.position, {
           x: 1,
           y: 1,
@@ -88,8 +87,9 @@ camera.lookAt(0, -0.15, 0);
         });
       },
       onLeaveBack: () => {
+        console.log("Returning to initial (before Section 1)");
         gsap.to(camera.position, {
-          x: -0.5,
+          x: 0,
           y: -0.15,
           z: 2.5,
           onUpdate: () => camera.lookAt(0, -0.15, 0),
@@ -106,6 +106,7 @@ camera.lookAt(0, -0.15, 0);
       scrub: true,
       onEnter: () => {
         savedRotationSection2 = pivot.rotation.y;
+        console.log("Saved rotation Section 2:", savedRotationSection2);
         gsap.to(pivot.position, {
           y: -0.01,
           overwrite: "auto"
@@ -117,6 +118,7 @@ camera.lookAt(0, -0.15, 0);
         });
       },
       onLeave: () => {
+        console.log("Leaving Section 2 → restore Section 2 rotation");
         gsap.killTweensOf(pivot.rotation);
         gsap.to(pivot.rotation, {
           y: savedRotationSection2,
@@ -125,6 +127,7 @@ camera.lookAt(0, -0.15, 0);
         });
       },
       onLeaveBack: () => {
+        console.log("Scrolling back from Section 2 → restore Section 1 rotation");
         gsap.killTweensOf(pivot.rotation);
         gsap.to(pivot.rotation, {
           y: savedRotationSection1,
@@ -141,6 +144,7 @@ camera.lookAt(0, -0.15, 0);
       end: "bottom center",
       onEnter: () => {
         savedRotationSection3 = pivot.rotation.y;
+        console.log("Saved rotation Section 3:", savedRotationSection3);
         gsap.to(pivot.position, { y: -0.08, duration: 1 });
         gsap.to(pivot.rotation, {
           y: "-=6.283", // full spin
@@ -150,6 +154,7 @@ camera.lookAt(0, -0.15, 0);
         });
       },
       onLeave: () => {
+        console.log("Leaving Section 3 → restore Section 3 rotation");
         gsap.killTweensOf(pivot.rotation);
         gsap.to(pivot.rotation, {
           y: savedRotationSection3,
@@ -158,6 +163,7 @@ camera.lookAt(0, -0.15, 0);
         });
       },
       onLeaveBack: () => {
+        console.log("Scrolling back from Section 3 → restore Section 2 rotation");
         gsap.killTweensOf(pivot.rotation);
         gsap.to(pivot.rotation, {
           y: savedRotationSection2,
