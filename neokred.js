@@ -82,8 +82,8 @@ loader.load(
         savedRotationSection1 = pivot.rotation.y;
         console.log("Saved rotation Section 1:", savedRotationSection1);
         gsap.to(camera.position, {
-          x: 1,
-          y: 1,
+          x: 0,
+          y: 0,
           z: 2.7,
           onUpdate: () => camera.lookAt(0, 0, 0),
           overwrite: "auto"
