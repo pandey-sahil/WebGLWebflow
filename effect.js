@@ -510,17 +510,19 @@ return {
 };
 }
 */ 
+function initBludge() {
+  console.log("initBludge called");
 
-function initBludge(){
+  const cards = Array.from(
+    document.querySelectorAll('[webgl-anime="image-hover"]')
+  );
+  console.log("Cards found:", cards.length);
 
-     const cards = Array.from(
-        document.querySelectorAll('[webgl-anime="image-hover"]')
-      );
-      const loader = new THREE.TextureLoader();
-      const planes = [];
+  const loader = new THREE.TextureLoader();
+  const planes = [];
 
-      // Shader code
-      const vertexShader = `
+  // Shader code
+  const vertexShader = `
 varying vec2 vUv;
 void main() {
   vUv = uv;
@@ -528,7 +530,7 @@ void main() {
 }
 `;
 
-      const fragmentShader = `
+  const fragmentShader = `
 precision highp float;
 uniform sampler2D uTexture;
 uniform vec2 uMouse;
@@ -546,119 +548,123 @@ void main() {
 }
 `;
 
-      cards.forEach((card) => {
-        const img = card.querySelector("img");
-        const texture = loader.load(img.src);
+  cards.forEach((card, i) => {
+    console.log("Processing card:", i);
 
-        const width = card.offsetWidth;
-        const height = card.offsetHeight;
+    // remove old canvases if they exist
+    card.querySelectorAll(".work-canvas").forEach(el => {
+      console.log("Removed old canvas from card", i);
+      el.remove();
+    });
 
-        // Scene, camera, renderer per card
-        const scene = new THREE.Scene();
-        const camera = new THREE.OrthographicCamera(
-          -width / 2,
-          width / 2,
-          height / 2,
-          -height / 2,
-          0.1,
-          10
-        );
-        camera.position.z = 1;
+    const img = card.querySelector("img");
+    if (!img) {
+      console.warn("No image found in card", i);
+      return;
+    }
 
-const renderer = new THREE.WebGLRenderer({
-  alpha: true,
-  antialias: true,
-});
-renderer.setSize(width, height);
-renderer.setPixelRatio(window.devicePixelRatio);
+    const texture = loader.load(img.src);
 
-// Add class
-renderer.domElement.classList.add("work-canvas");
+    const width = card.offsetWidth;
+    const height = card.offsetHeight;
 
-card.appendChild(renderer.domElement);
+    // Scene, camera, renderer per card
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(
+      -width / 2,
+      width / 2,
+      height / 2,
+      -height / 2,
+      0.1,
+      10
+    );
+    camera.position.z = 1;
 
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+    });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
 
-        const geometry = new THREE.PlaneGeometry(width, height);
-        const material = new THREE.ShaderMaterial({
-          uniforms: {
-            uTexture: { value: texture },
-            uMouse: { value: new THREE.Vector2(-1, -1) },
-            uHover: { value: 0 },
-          },
-          vertexShader,
-          fragmentShader,
-        });
+    // Add class
+    renderer.domElement.classList.add("work-canvas");
+    card.appendChild(renderer.domElement);
+    console.log("Added canvas to card", i);
 
-        const mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
+    const geometry = new THREE.PlaneGeometry(width, height);
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTexture: { value: texture },
+        uMouse: { value: new THREE.Vector2(-1, -1) },
+        uHover: { value: 0 },
+      },
+      vertexShader,
+      fragmentShader,
+    });
 
-        planes.push({ card, renderer, scene, camera, material });
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
 
-        // Mouse move
-        card.addEventListener("mousemove", (e) => {
-          const rect = card.getBoundingClientRect();
-          const x = (e.clientX - rect.left) / rect.width;
-          const y = 1 - (e.clientY - rect.top) / rect.height;
-          material.uniforms.uMouse.value.set(x, y);
-          material.uniforms.uHover.value +=
-            (1.0 - material.uniforms.uHover.value) * 0.1;
-        });
+    planes.push({ card, renderer, scene, camera, material });
 
-        // Mouse leave
-        card.addEventListener("mouseleave", () => {
-          // Let animate loop gradually decay uHover
-        });
+    // Mouse move
+    card.addEventListener("mousemove", (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = 1 - (e.clientY - rect.top) / rect.height;
+      material.uniforms.uMouse.value.set(x, y);
+      material.uniforms.uHover.value +=
+        (1.0 - material.uniforms.uHover.value) * 0.1;
+    });
 
-        function animate() {
-          requestAnimationFrame(animate);
+    card.addEventListener("mouseleave", () => {
+      console.log("Mouse left card", i);
+    });
 
-          // Smooth hover fade
-          material.uniforms.uHover.value *= 0.9;
+    function animate() {
+      requestAnimationFrame(animate);
+      material.uniforms.uHover.value *= 0.9;
+      renderer.render(scene, camera);
+    }
+    animate();
 
-          renderer.render(scene, camera);
-        }
-        animate();
-
-        // Responsive
-        window.addEventListener("resize", () => {
-          const width = card.offsetWidth;
-          const height = card.offsetHeight;
-          renderer.setSize(width, height);
-          camera.left = -width / 2;
-          camera.right = width / 2;
-          camera.top = height / 2;
-          camera.bottom = -height / 2;
-          camera.updateProjectionMatrix();
-          mesh.scale.set(width, height, 1);
-        });
-      });
+    // Responsive
+    window.addEventListener("resize", () => {
+      const width = card.offsetWidth;
+      const height = card.offsetHeight;
+      renderer.setSize(width, height);
+      camera.left = -width / 2;
+      camera.right = width / 2;
+      camera.top = height / 2;
+      camera.bottom = -height / 2;
+      camera.updateProjectionMatrix();
+      mesh.scale.set(width, height, 1);
+      console.log("Resized card", i);
+    });
+  });
 }
-
-
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 Add all the effects to the function
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-*/ 
+*/
 
-
-document.addEventListener('DOMContentLoaded', () => {
-
+document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
-     initBludge()
- //   window.WebGLEffects.addEffect(CardHoverEffect);
-   window.WebGLEffects.addEffect(HoverListEffect);
+    console.log("DOMContentLoaded init");
+    initBludge();
+    // window.WebGLEffects.addEffect(CardHoverEffect);
+    window.WebGLEffects.addEffect(HoverListEffect);
   }, 100);
 });
 
-
-if (document.readyState === 'loading') {
-
-} else {
+if (document.readyState !== "loading") {
   setTimeout(() => {
-   // window.WebGLEffects.addEffect(CardHoverEffect);
-     initBludge()
-   window.WebGLEffects.addEffect(HoverListEffect);
+    console.log("Page already loaded, init immediately");
+    initBludge();
+    // window.WebGLEffects.addEffect(CardHoverEffect);
+    window.WebGLEffects.addEffect(HoverListEffect);
   }, 100);
 }
