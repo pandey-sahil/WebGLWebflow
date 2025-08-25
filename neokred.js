@@ -171,6 +171,7 @@ ScrollTrigger.create({
     });
   }
 });
+  }
 
 // Animate
 function animate() {
