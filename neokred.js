@@ -64,8 +64,8 @@ loader.load(
     });
 
     // ✅ Initial camera (dead center, no tilt)
-    camera.position.set(0, 3, 2.7);
-    camera.lookAt(3, 0, 0);
+    camera.position.set(0, 30, 2.7);
+    camera.lookAt(30, 0, 0);
 
     // -----------------
     // GSAP + ScrollTrigger
