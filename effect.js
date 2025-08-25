@@ -221,12 +221,15 @@ function HoverListEffect(globalRenderer) {
   let targetX = 0, targetY = 0;
   let currentIndex = -1;
   let transitioning = false, fadingOut = false;
+  let currentMeshPosition = new THREE.Vector3(0, 0, 0);
 
-  // CAMERA
-  const { clientWidth: width, clientHeight: height } = wrapper;
-  const aspect = width / height;
-  const fov = (180 * (2 * Math.atan(height / 2 / perspective))) / Math.PI;
-  const camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 1000);
+  // CAMERA - Fixed for viewport
+  const camera = new THREE.PerspectiveCamera(
+    (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+  );
   camera.position.set(0, 0, perspective);
 
   // UNIFORMS
@@ -266,89 +269,101 @@ function HoverListEffect(globalRenderer) {
   links.forEach((link, idx) => {
     if (!textures[idx]) return;
     
-link.addEventListener("mouseenter", () => {
-    console.log("Mouse entered link");
+    link.addEventListener("mouseenter", () => {
+      console.log("Mouse entered link", idx);
 
-    uniforms.uPrevTexture.value = uniforms.uTexture.value;
-    uniforms.uTexture.value = textures[idx];
-    uniforms.uAlpha.value = 1.0;
-    uniforms.uMixFactor.value = 0.0;
+      uniforms.uPrevTexture.value = uniforms.uTexture.value;
+      uniforms.uTexture.value = textures[idx];
+      uniforms.uAlpha.value = 1.0;
+      uniforms.uMixFactor.value = 0.0;
 
-    currentIndex = idx;
-    transitioning = true;
-    fadingOut = false;
+      currentIndex = idx;
+      transitioning = true;
+      fadingOut = false;
 
-    const img = link.querySelector('[webgl-anime="image-src"]');
-    if (img) {
+      const img = link.querySelector('[webgl-anime="image-src"]');
+      if (img) {
+        // Get image dimensions and position
         const rect = img.getBoundingClientRect();
-const imgRatio = img.naturalWidth / img.naturalHeight;
-const containerRatio = rect.width / rect.height;
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const containerRatio = rect.width / rect.height;
 
-let meshWidth, meshHeight;
+        let meshWidth, meshHeight;
+        if (containerRatio > imgRatio) {
+          meshWidth = rect.width;
+          meshHeight = rect.width / imgRatio;
+        } else {
+          meshHeight = rect.height;
+          meshWidth = rect.height * imgRatio;
+        }
 
-if (containerRatio > imgRatio) {
-    meshWidth = rect.width;
-    meshHeight = rect.width / imgRatio;
-} else {
-    meshHeight = rect.height;
-    meshWidth = rect.height * imgRatio;
-}
+        // Set mesh scale
+        mesh.scale.set(meshWidth, meshHeight, 1);
 
-// Set scale
-mesh.scale.set(meshWidth, meshHeight, 1);
-
-// Center the mesh over the image
-const offsetX = rect.left + rect.width / 2 - window.innerWidth / 2;
-const offsetY = - (rect.top + rect.height / 2 - window.innerHeight / 2);
-mesh.position.set(offsetX, offsetY, 0);
-
-
-    } else {
-   
-    }
-});
-
-
-
+        // FIXED POSITIONING: Convert screen coordinates to Three.js world coordinates
+        const viewportCenterX = window.innerWidth / 2;
+        const viewportCenterY = window.innerHeight / 2;
+        
+        // Image center in screen coordinates
+        const imageCenterX = rect.left + rect.width / 2;
+        const imageCenterY = rect.top + rect.height / 2;
+        
+        // Convert to Three.js coordinates (relative to viewport center)
+        const offsetX = imageCenterX - viewportCenterX;
+        const offsetY = viewportCenterY - imageCenterY; // Y is flipped in Three.js
+        
+        // Store the base position
+        currentMeshPosition.set(offsetX, offsetY, 0);
+        mesh.position.copy(currentMeshPosition);
+        
+        console.log("Image positioned at:", offsetX, offsetY, "Screen rect:", rect);
+      }
+    });
 
     link.addEventListener("mouseleave", () => {
       fadingOut = true;
     });
   });
 
-  // MOUSE MOVE
+  // MOUSE MOVE - relative to wrapper
   wrapper.addEventListener("mousemove", (e) => {
     const rect = wrapper.getBoundingClientRect();
     targetX = e.clientX - rect.left;
     targetY = e.clientY - rect.top;
   });
 
-  // RESIZE
+  // RESIZE HANDLER
   window.addEventListener("resize", () => {
-    const { clientWidth: w, clientHeight: h } = wrapper;
-    camera.aspect = w / h;
-    camera.fov = (180 * (2 * Math.atan(h / 2 / perspective))) / Math.PI;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.fov = (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI;
     camera.updateProjectionMatrix();
   });
 
-function update() {
+  function update() {
     uniforms.uTime.value = Date.now() * 0.001;
 
-    // Smooth mouse offset
-    offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
-    offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
+    // Only apply deformation when mesh is visible
+    if (uniforms.uAlpha.value > 0) {
+      // Smooth mouse offset for deformation
+      offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
+      offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
 
-    uniforms.uOffset.value.set(
-      (targetX - offset.x) * SETTINGS.deformation.strength,
-      -(targetY - offset.y) * SETTINGS.deformation.strength
-    );
+      // Apply deformation offsets
+      uniforms.uOffset.value.set(
+        (targetX - offset.x) * SETTINGS.deformation.strength,
+        -(targetY - offset.y) * SETTINGS.deformation.strength
+      );
 
-    uniforms.uRGBOffset.value.set(
-      (targetX - offset.x) * 0.001,
-      (targetY - offset.y) * 0.001
-    );
+      uniforms.uRGBOffset.value.set(
+        (targetX - offset.x) * 0.001,
+        (targetY - offset.y) * 0.001
+      );
 
-    // Handle transitions
+      // Keep mesh at its base position (don't move it around)
+      mesh.position.copy(currentMeshPosition);
+    }
+
+    // Handle texture transitions
     if (transitioning && uniforms.uMixFactor.value < 1.0) {
       uniforms.uMixFactor.value += SETTINGS.transition.speed;
       if (uniforms.uMixFactor.value >= 1.0) {
@@ -357,35 +372,19 @@ function update() {
       }
     }
 
+    // Handle fade out
     if (fadingOut && uniforms.uAlpha.value > 0.0) {
       uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
       if (uniforms.uAlpha.value <= 0.0) {
         uniforms.uAlpha.value = 0.0;
         fadingOut = false;
+        currentIndex = -1;
       }
     }
-
-    // Correct mesh position relative to wrapper and scroll
-    const rect = wrapper.getBoundingClientRect();
-    const wrapperCenterX = rect.left + rect.width / 2;
-    const wrapperCenterY = rect.top + rect.height / 2;
-
-    // Convert mouse offset to Three.js coordinates
-    mesh.position.set(
-      (offset.x - rect.width / 2) * 1,               // x
-      -(offset.y - rect.height / 2) * 1,             // y (flip)
-      0
-    );
-
-    // Offset mesh so it’s centered on wrapper in world space
-    mesh.position.x += wrapperCenterX - window.innerWidth / 2;
-    mesh.position.y += window.innerHeight / 2 - wrapperCenterY;
-}
-
+  }
 
   return { scene, camera, update };
 }
-
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
@@ -475,35 +474,40 @@ function CardHoverEffect(renderer) {
   });
 
   // Update function called per frame
-  return {
-    update: () => {
-      planes.forEach((p, idx) => {
-        const rect = p.wrapper.getBoundingClientRect();
-        const scrollY = window.scrollY || window.pageYOffset;
+ 
+  // Update function for CardHoverEffect - replace your existing update function
+return {
+  update: () => {
+    planes.forEach((p, idx) => {
+      const rect = p.wrapper.getBoundingClientRect();
 
-        // Center of wrapper in viewport + scroll
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2 + scrollY;
+      // FIXED: Convert screen coordinates to NDC properly
+      const viewportCenterX = window.innerWidth / 2;
+      const viewportCenterY = window.innerHeight / 2;
+      
+      // Center of wrapper in screen coordinates
+      const wrapperCenterX = rect.left + rect.width / 2;
+      const wrapperCenterY = rect.top + rect.height / 2;
+      
+      // Convert to normalized device coordinates (-1 to 1)
+      const ndcX = (wrapperCenterX - viewportCenterX) / viewportCenterX;
+      const ndcY = (viewportCenterY - wrapperCenterY) / viewportCenterY;
 
-        // Convert to normalized device coordinates (-1 to 1)
-        const ndcX = (centerX / window.innerWidth) * 2 - 1;
-        const ndcY = -((centerY / window.innerHeight) * 2 - 1);
+      // Scale relative to viewport
+      const scaleX = (rect.width / window.innerWidth) * 2;
+      const scaleY = (rect.height / window.innerHeight) * 2;
 
-        // Scale relative to viewport
-        const scaleX = rect.width / window.innerWidth;
-        const scaleY = rect.height / window.innerHeight;
+      p.mesh.position.set(ndcX, ndcY, 0);
+      p.mesh.scale.set(scaleX, scaleY, 1);
 
-        p.mesh.position.set(ndcX, ndcY, 0);
-        p.mesh.scale.set(scaleX, scaleY, 1);
+      // Hover decay
+      p.material.uniforms.uHover.value *= 0.9;
 
-        // Hover decay
-        p.material.uniforms.uHover.value *= 0.9;
-
-        // Render each card’s scene
-        renderer.render(p.scene, p.camera);
-      });
-    }
-  };
+      // Render each card's scene
+      renderer.render(p.scene, p.camera);
+    });
+  }
+};
 }
 
 
