@@ -1,3 +1,4 @@
+import * as THREE from "three";
 // ========== Global WebGL Manager ==========
 window.WebGLEffects = (function () {
   const effects = [];
