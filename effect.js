@@ -152,7 +152,7 @@ function HoverListEffect() {
   const geometry = new THREE.PlaneGeometry(1, 1, 32, 32);
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      uTexture: { value: null },
+      uTexture: { value: new THREE.Texture() }, // default blank texture
       uAlpha: { value: 0.0 },
       uTime: { value: 0.0 },
       uHover: { value: new THREE.Vector2(0, 0) },
@@ -179,6 +179,7 @@ function HoverListEffect() {
       uniform float uAlpha;
       void main() {
         vec4 color = texture2D(uTexture, vUv);
+        if (color.a < 0.01) discard; // prevents black fill when no texture
         gl_FragColor = vec4(color.rgb, color.a * uAlpha);
       }
     `,
@@ -186,7 +187,17 @@ function HoverListEffect() {
   });
 
   const mesh = new THREE.Mesh(geometry, material);
-  WebGLEffects.scene.add(mesh);
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(
+    window.innerWidth / -2,
+    window.innerWidth / 2,
+    window.innerHeight / 2,
+    window.innerHeight / -2,
+    1,
+    1000
+  );
+  camera.position.z = 2;
+  scene.add(mesh);
 
   let currentIndex = -1;
   const links = document.querySelectorAll('[webgl-anime="list-item"]');
@@ -203,8 +214,10 @@ function HoverListEffect() {
     const img = link.querySelector('[webgl-anime="image-src"]');
     if (!img) return;
 
-    const texture = new THREE.TextureLoader().load(img.src);
-    texture.minFilter = THREE.LinearFilter;
+    const texture = new THREE.TextureLoader().load(img.src, () => {
+      texture.minFilter = THREE.LinearFilter;
+      texture.needsUpdate = true;
+    });
 
     link.addEventListener("mouseenter", () => {
       material.uniforms.uTexture.value = texture;
@@ -259,12 +272,10 @@ function HoverListEffect() {
     });
   }
 
-  function render(renderer) {
-    renderer.render(WebGLEffects.scene, WebGLEffects.camera);
-  }
-
-  return { update, render };
+  // Return in your format
+  return { scene, camera, update };
 }
+
 
 
 /*
