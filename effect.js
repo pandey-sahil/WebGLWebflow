@@ -8,8 +8,9 @@ import * as THREE from 'three';
 window.WebGLEffects = (function () {
   const effects = [];
   let renderer, scene, camera;
-  let currentTab = 'Tab 2'; // Default to list view
+  let currentTab = 'Tab 1'; // Default to grid view
   let animationId = null;
+  let scrollBlurEffect = null;
 
   function init() {
     // Shared renderer
@@ -19,17 +20,17 @@ window.WebGLEffects = (function () {
     
     // add class and styling before appending
     renderer.domElement.classList.add("global-webgl-canvas");
-    renderer.domElement.classList.add("list-webgl-canvas"); // Also add the CSS class from your styles
+    renderer.domElement.classList.add("scroll-blur-canvas"); 
     renderer.domElement.style.position = "fixed";
     renderer.domElement.style.top = "0";
     renderer.domElement.style.left = "0";
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
-    renderer.domElement.style.zIndex = "999";
+    renderer.domElement.style.zIndex = "1"; // Lower z-index to not interfere with other animations
     renderer.domElement.style.pointerEvents = "none";
     document.body.appendChild(renderer.domElement);
 
-    // Shared scene + camera (can be overridden per effect)
+    // Shared scene + camera
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(
       45,
@@ -39,13 +40,16 @@ window.WebGLEffects = (function () {
     );
     camera.position.z = 5;
 
+    // Initialize scroll blur effect
+    initScrollBlurEffect();
+    
     animate();
     window.addEventListener("resize", onResize);
     
     // Listen for tab changes
     initTabListener();
     
-    console.log('Global WebGL renderer initialized');
+    console.log('Global WebGL renderer initialized with scroll blur');
   }
 
   function initTabListener() {
@@ -64,7 +68,7 @@ window.WebGLEffects = (function () {
     // Also check for initial active tab
     const activeTab = document.querySelector('.w-tab-link.w--current');
     if (activeTab) {
-      currentTab = activeTab.getAttribute('data-w-tab') || 'Tab 2';
+      currentTab = activeTab.getAttribute('data-w-tab') || 'Tab 1';
       console.log('Initial tab:', currentTab);
     }
 
@@ -156,16 +160,20 @@ window.WebGLEffects = (function () {
   function animate(time) {
     animationId = requestAnimationFrame(animate);
     
-    // Only render global effects for list view
-    if (currentTab === 'Tab 2') {
-      // Clear the main canvas
+    // Always render scroll blur effect (global background)
+    if (scrollBlurEffect) {
+      scrollBlurEffect.update(time);
       renderer.setRenderTarget(null);
       renderer.clear();
-      
-      // Update and render each effect
+      renderer.render(scrollBlurEffect.scene, scrollBlurEffect.camera);
+    }
+    
+    // Render tab-specific effects on top
+    if (currentTab === 'Tab 2') {
+      // Update and render list effects
       effects.forEach((e) => {
         if (e.update) e.update(time);
-        if (e.scene && e.camera) {
+        if (e.scene && e.camera && e.type === 'list-hover') {
           renderer.render(e.scene, e.camera);
         }
       });
@@ -182,9 +190,123 @@ window.WebGLEffects = (function () {
     camera, 
     switchTab,
     getCurrentTab: () => currentTab,
-    initTabEffects
+    initTabEffects,
+    scrollBlurEffect: () => scrollBlurEffect
   };
 })();
+
+/*
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+Progressive Blur Scroll Effect for Section Reveals
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+*/
+function initScrollBlurEffect() {
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  
+  const vertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+  
+  const fragmentShader = `
+    uniform float uTime;
+    uniform float uScrollProgress;
+    uniform vec2 uResolution;
+    varying vec2 vUv;
+    
+    // Noise function
+    float noise(vec2 st) {
+      return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+    }
+    
+    void main() {
+      vec2 st = vUv;
+      vec2 center = vec2(0.5, 0.5);
+      
+      // Create radial gradient from center
+      float dist = distance(st, center);
+      
+      // Animated noise overlay
+      float n = noise(st * 10.0 + uTime * 0.5);
+      
+      // Progressive blur based on scroll
+      float blurAmount = smoothstep(0.0, 1.0, uScrollProgress);
+      
+      // Create revealing effect
+      float reveal = smoothstep(0.3, 0.7, 1.0 - blurAmount + n * 0.1);
+      
+      // Gradient colors
+      vec3 color1 = vec3(0.1, 0.1, 0.2); // Dark blue
+      vec3 color2 = vec3(0.05, 0.05, 0.1); // Darker
+      
+      vec3 finalColor = mix(color1, color2, dist);
+      finalColor *= (1.0 - blurAmount * 0.8); // Fade out on scroll
+      
+      // Add some shimmer
+      float shimmer = sin(uTime * 2.0 + dist * 10.0) * 0.1 * (1.0 - blurAmount);
+      finalColor += shimmer;
+      
+      gl_FragColor = vec4(finalColor, reveal * 0.3); // Low opacity for background
+    }
+  `;
+  
+  const uniforms = {
+    uTime: { value: 0 },
+    uScrollProgress: { value: 0 },
+    uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+  };
+  
+  const geometry = new THREE.PlaneGeometry(2, 2);
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader,
+    fragmentShader,
+    transparent: true,
+    blending: THREE.NormalBlending
+  });
+  
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
+  
+  // Scroll listener
+  let scrollProgress = 0;
+  const updateScroll = () => {
+    const scrolled = window.pageYOffset;
+    const maxScroll = document.body.scrollHeight - window.innerHeight;
+    scrollProgress = Math.min(scrolled / maxScroll, 1);
+    uniforms.uScrollProgress.value = scrollProgress;
+  };
+  
+  window.addEventListener('scroll', updateScroll, { passive: true });
+  
+  const update = (time) => {
+    uniforms.uTime.value = time * 0.001;
+  };
+  
+  const resize = () => {
+    uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+  };
+  
+  window.addEventListener('resize', resize);
+  
+  window.WebGLEffects.scrollBlurEffect = {
+    scene,
+    camera,
+    update,
+    cleanup: () => {
+      window.removeEventListener('scroll', updateScroll);
+      window.removeEventListener('resize', resize);
+      geometry.dispose();
+      material.dispose();
+    }
+  };
+  
+  return window.WebGLEffects.scrollBlurEffect;
+}
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
@@ -207,11 +329,11 @@ function HoverListEffect(globalRenderer) {
 
   console.log('Initializing Enhanced HoverListEffect for Tab 2', wrapper);
 
-  // Enhanced settings from your old code
+  // Enhanced settings for smoother following
   const SETTINGS = {
     deformation: {
-      strength: 0.00055,  // Increased strength
-      smoothing: 0.1      // Better smoothing
+      strength: 0.00055,  
+      smoothing: 0.05     // Made much smoother (reduced from 0.1)
     },
     transition: {
       speed: 0.05,
@@ -226,6 +348,10 @@ function HoverListEffect(globalRenderer) {
     mesh: {
       baseSize: 300,
       segments: 20
+    },
+    mouse: {
+      lerpFactor: 0.08,    // Smooth mouse following
+      responsiveness: 0.6   // How much the effect responds to movement
     }
   };
 
@@ -441,30 +567,34 @@ function HoverListEffect(globalRenderer) {
     uniforms.uTime.value = Date.now() * 0.001;
 
     if (uniforms.uAlpha.value > 0 && currentIndex >= 0) {
-      // Enhanced smooth lerping from your old code
-      offset.x = lerp(offset.x, targetX, SETTINGS.deformation.smoothing);
-      offset.y = lerp(offset.y, targetY, SETTINGS.deformation.smoothing);
+      // Much smoother lerping with enhanced responsiveness
+      offset.x = lerp(offset.x, targetX, SETTINGS.mouse.lerpFactor);
+      offset.y = lerp(offset.y, targetY, SETTINGS.mouse.lerpFactor);
 
-      // Enhanced deformation with better strength
+      // Smoother deformation with better responsiveness
+      const deltaX = (targetX - offset.x) * SETTINGS.mouse.responsiveness;
+      const deltaY = (targetY - offset.y) * SETTINGS.mouse.responsiveness;
+      
       uniforms.uOffset.value.set(
-        (targetX - offset.x) * SETTINGS.deformation.strength,
-        -(targetY - offset.y) * SETTINGS.deformation.strength
+        deltaX * SETTINGS.deformation.strength,
+        -deltaY * SETTINGS.deformation.strength
       );
 
-      // Enhanced RGB split on mouse movement
-      const mouseMovementX = (targetX - offset.x) * 0.001;
-      const mouseMovementY = (targetY - offset.y) * 0.001;
-      
-      uniforms.uRGBOffset.value.set(mouseMovementX, mouseMovementY);
+      // Smoother RGB split on mouse movement
+      const rgbStrength = 0.0008; // Reduced for subtlety
+      uniforms.uRGBOffset.value.set(
+        deltaX * rgbStrength,
+        deltaY * rgbStrength
+      );
 
-      // Enhanced positioning - mesh follows mouse within wrapper bounds
+      // Smoother positioning - mesh follows mouse within wrapper bounds
       const rect = wrapper.getBoundingClientRect();
       const wrapperCenterX = rect.width / 2;
       const wrapperCenterY = rect.height / 2;
       
-      // Convert wrapper coordinates to world coordinates
-      const worldX = offset.x - wrapperCenterX;
-      const worldY = wrapperCenterY - offset.y;
+      // Convert wrapper coordinates to world coordinates with smooth following
+      const worldX = lerp(mesh.position.x, offset.x - wrapperCenterX, 0.1);
+      const worldY = lerp(mesh.position.y, wrapperCenterY - offset.y, 0.1);
       
       mesh.position.set(worldX, worldY, 0);
     }
