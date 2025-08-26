@@ -221,9 +221,8 @@ function HoverListEffect(globalRenderer) {
   let targetX = 0, targetY = 0;
   let currentIndex = -1;
   let transitioning = false, fadingOut = false;
-  let currentMeshPosition = new THREE.Vector3(0, 0, 0);
 
-  // CAMERA - Fixed for viewport
+  // CAMERA
   const camera = new THREE.PerspectiveCamera(
     (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI,
     window.innerWidth / window.innerHeight,
@@ -270,8 +269,6 @@ function HoverListEffect(globalRenderer) {
     if (!textures[idx]) return;
     
     link.addEventListener("mouseenter", () => {
-      console.log("Mouse entered link", idx);
-
       uniforms.uPrevTexture.value = uniforms.uTexture.value;
       uniforms.uTexture.value = textures[idx];
       uniforms.uAlpha.value = 1.0;
@@ -280,44 +277,6 @@ function HoverListEffect(globalRenderer) {
       currentIndex = idx;
       transitioning = true;
       fadingOut = false;
-
-      const img = link.querySelector('[webgl-anime="image-src"]');
-      if (img) {
-        // Get image dimensions and position
-        const rect = img.getBoundingClientRect();
-        const imgRatio = img.naturalWidth / img.naturalHeight;
-        const containerRatio = rect.width / rect.height;
-
-        let meshWidth, meshHeight;
-        if (containerRatio > imgRatio) {
-          meshWidth = rect.width;
-          meshHeight = rect.width / imgRatio;
-        } else {
-          meshHeight = rect.height;
-          meshWidth = rect.height * imgRatio;
-        }
-
-        // Set mesh scale
-        mesh.scale.set(meshWidth, meshHeight, 1);
-
-        // FIXED POSITIONING: Convert screen coordinates to Three.js world coordinates
-        const viewportCenterX = window.innerWidth / 2;
-        const viewportCenterY = window.innerHeight / 2;
-        
-        // Image center in screen coordinates
-        const imageCenterX = rect.left + rect.width / 2;
-        const imageCenterY = rect.top + rect.height / 2;
-        
-        // Convert to Three.js coordinates (relative to viewport center)
-        const offsetX = imageCenterX - viewportCenterX;
-        const offsetY = viewportCenterY - imageCenterY; // Y is flipped in Three.js
-        
-        // Store the base position
-        currentMeshPosition.set(offsetX, offsetY, 0);
-        mesh.position.copy(currentMeshPosition);
-        
-        console.log("Image positioned at:", offsetX, offsetY, "Screen rect:", rect);
-      }
     });
 
     link.addEventListener("mouseleave", () => {
@@ -342,13 +301,43 @@ function HoverListEffect(globalRenderer) {
   function update() {
     uniforms.uTime.value = Date.now() * 0.001;
 
-    // Only apply deformation when mesh is visible
+    // --- FIX: Recalculate mesh position every frame for current active image ---
+    if (currentIndex >= 0 && links[currentIndex]) {
+      const img = links[currentIndex].querySelector('[webgl-anime="image-src"]');
+      if (img) {
+        const rect = img.getBoundingClientRect();
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const containerRatio = rect.width / rect.height;
+
+        let meshWidth, meshHeight;
+        if (containerRatio > imgRatio) {
+          meshWidth = rect.width;
+          meshHeight = rect.width / imgRatio;
+        } else {
+          meshHeight = rect.height;
+          meshWidth = rect.height * imgRatio;
+        }
+
+        mesh.scale.set(meshWidth, meshHeight, 1);
+
+        const viewportCenterX = window.innerWidth / 2;
+        const viewportCenterY = window.innerHeight / 2;
+        
+        const imageCenterX = rect.left + rect.width / 2;
+        const imageCenterY = rect.top + rect.height / 2;
+        
+        const offsetX = imageCenterX - viewportCenterX;
+        const offsetY = viewportCenterY - imageCenterY;
+        
+        mesh.position.set(offsetX, offsetY, 0);
+      }
+    }
+
+    // Smooth mouse deformation
     if (uniforms.uAlpha.value > 0) {
-      // Smooth mouse offset for deformation
       offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
       offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
 
-      // Apply deformation offsets
       uniforms.uOffset.value.set(
         (targetX - offset.x) * SETTINGS.deformation.strength,
         -(targetY - offset.y) * SETTINGS.deformation.strength
@@ -358,9 +347,6 @@ function HoverListEffect(globalRenderer) {
         (targetX - offset.x) * 0.001,
         (targetY - offset.y) * 0.001
       );
-
-      // Keep mesh at its base position (don't move it around)
-      mesh.position.copy(currentMeshPosition);
     }
 
     // Handle texture transitions
@@ -385,6 +371,7 @@ function HoverListEffect(globalRenderer) {
 
   return { scene, camera, update };
 }
+
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
