@@ -17,8 +17,13 @@ window.WebGLEffects = (function () {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     
-    // add class before appending
+    // add class and styling before appending
     renderer.domElement.classList.add("global-webgl-canvas");
+    renderer.domElement.style.position = "fixed";
+    renderer.domElement.style.top = "0";
+    renderer.domElement.style.left = "0";
+    renderer.domElement.style.zIndex = "999";
+    renderer.domElement.style.pointerEvents = "none";
     document.body.appendChild(renderer.domElement);
 
     // Shared scene + camera (can be overridden per effect)
@@ -36,6 +41,8 @@ window.WebGLEffects = (function () {
     
     // Listen for tab changes
     initTabListener();
+    
+    console.log('Global WebGL renderer initialized');
   }
 
   function initTabListener() {
@@ -57,6 +64,14 @@ window.WebGLEffects = (function () {
       currentTab = activeTab.getAttribute('data-w-tab') || 'Tab 2';
       console.log('Initial tab:', currentTab);
     }
+
+    // Also listen for Webflow's tab change events
+    document.addEventListener('w-tab-change', (e) => {
+      console.log('Webflow tab change detected', e.detail);
+      if (e.detail && e.detail.tab !== currentTab) {
+        switchTab(e.detail.tab);
+      }
+    });
   }
 
   function switchTab(newTab) {
@@ -183,12 +198,7 @@ function HoverListEffect(globalRenderer) {
     return null;
   }
 
-  // Check if tab is currently active
-  const isActive = wrapper.classList.contains('w--tab-active');
-  if (!isActive) {
-    console.log('List tab not active, skipping initialization');
-    return null;
-  }
+  console.log('Initializing HoverListEffect for Tab 2');
 
   const SETTINGS = {
     deformation: { strength: 0.00055, smoothing: 0.1 },
@@ -280,14 +290,22 @@ function HoverListEffect(globalRenderer) {
 
   // LOAD textures
   const links = [...wrapper.querySelectorAll('[webgl-anime="list-item"]')];
-  const textures = links.map(link => {
+  console.log('Found list items:', links.length);
+  
+  const textures = links.map((link, idx) => {
     const img = link.querySelector('[webgl-anime="image-src"]');
-    if (!img) return null;
+    if (!img) {
+      console.warn('No image found for list item', idx);
+      return null;
+    }
+    console.log('Loading texture for item', idx, img.src);
     const tex = new THREE.TextureLoader().load(img.src);
     tex.minFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
     return tex;
   }).filter(tex => tex !== null);
+
+  console.log('Loaded textures:', textures.length);
 
   // MESH
   const geometry = new THREE.PlaneGeometry(1, 1, SETTINGS.mesh.segments, SETTINGS.mesh.segments);
@@ -644,6 +662,17 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("Current tab on load:", currentTab);
     
     window.WebGLEffects.initTabEffects(currentTab);
+    
+    // Fallback: If no effects were initialized, try again with Tab 2
+    setTimeout(() => {
+      if (window.WebGLEffects.renderer) {
+        const hasEffects = window.WebGLEffects.renderer.info?.render?.triangles > 0;
+        if (!hasEffects) {
+          console.log('No effects detected, forcing Tab 2 initialization');
+          window.WebGLEffects.initTabEffects('Tab 2');
+        }
+      }
+    }, 500);
   }, 100);
 });
 
@@ -656,5 +685,14 @@ if (document.readyState !== "loading") {
     console.log("Current tab on load:", currentTab);
     
     window.WebGLEffects.initTabEffects(currentTab);
+    
+    // Fallback: If no effects were initialized, try again with Tab 2
+    setTimeout(() => {
+      if (window.WebGLEffects.renderer) {
+        console.log('Checking if effects are running...');
+        // Force Tab 2 initialization if screen is still black
+        window.WebGLEffects.initTabEffects('Tab 2');
+      }
+    }, 500);
   }, 100);
 }
