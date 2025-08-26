@@ -205,7 +205,7 @@ function HoverListEffect(globalRenderer) {
   console.log('Initializing HoverListEffect for Tab 2', wrapper);
 
   const SETTINGS = {
-    deformation: { strength: 0.00055, smoothing: 0.1 },
+    deformation: { strength: 0.002, smoothing: 0.15 },
     transition: { speed: 0.05, fadeInSpeed: 0.08, fadeOutSpeed: 0.06 },
     mesh: { baseSize: 300, segments: 20 }
   };
@@ -426,12 +426,17 @@ function HoverListEffect(globalRenderer) {
     });
   });
 
-  // MOUSE MOVE - relative to the list container
-  const listContainer = wrapper.querySelector('.portfolio20_list') || wrapper;
-  listContainer.addEventListener("mousemove", (e) => {
-    const rect = listContainer.getBoundingClientRect();
-    targetX = e.clientX - rect.left;
-    targetY = e.clientY - rect.top;
+  // MOUSE MOVE - relative to the entire viewport for better tracking
+  document.addEventListener("mousemove", (e) => {
+    // Only track mouse when we're on the list tab and have an active effect
+    if (window.WebGLEffects.getCurrentTab() !== 'Tab 2' || currentIndex === -1) return;
+    
+    // Use viewport coordinates directly
+    targetX = e.clientX;
+    targetY = e.clientY;
+    
+    // Debug mouse position
+    // console.log('Mouse position:', targetX, targetY);
   });
 
   // RESIZE HANDLER
@@ -445,23 +450,39 @@ function HoverListEffect(globalRenderer) {
   function update() {
     uniforms.uTime.value = Date.now() * 0.001;
 
-    if (uniforms.uAlpha.value > 0) {
+    if (uniforms.uAlpha.value > 0 && currentIndex >= 0) {
+      // Smooth mouse offset for deformation using viewport coordinates
       offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
       offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
 
+      // Calculate deformation relative to the mesh center
+      const meshCenterX = currentMeshPosition.x + (window.innerWidth / 2);
+      const meshCenterY = currentMeshPosition.y + (window.innerHeight / 2);
+      
+      // Calculate relative mouse position to mesh center
+      const relativeX = targetX - meshCenterX;
+      const relativeY = targetY - meshCenterY;
+      
+      // Apply deformation offsets (scaled down for subtlety)
       uniforms.uOffset.value.set(
-        (targetX - offset.x) * SETTINGS.deformation.strength,
-        -(targetY - offset.y) * SETTINGS.deformation.strength
+        relativeX * SETTINGS.deformation.strength,
+        -relativeY * SETTINGS.deformation.strength
       );
 
+      // RGB offset for chromatic aberration effect
       uniforms.uRGBOffset.value.set(
-        (targetX - offset.x) * 0.001,
-        (targetY - offset.y) * 0.001
+        relativeX * 0.0005,
+        relativeY * 0.0005
       );
 
+      // Keep mesh at its base position
       mesh.position.copy(currentMeshPosition);
+      
+      // Debug positioning
+      // console.log('Mesh center:', meshCenterX, meshCenterY, 'Mouse:', targetX, targetY, 'Relative:', relativeX, relativeY);
     }
 
+    // Handle texture transitions
     if (transitioning && uniforms.uMixFactor.value < 1.0) {
       uniforms.uMixFactor.value += SETTINGS.transition.speed;
       if (uniforms.uMixFactor.value >= 1.0) {
@@ -470,6 +491,7 @@ function HoverListEffect(globalRenderer) {
       }
     }
 
+    // Handle fade out
     if (fadingOut && uniforms.uAlpha.value > 0.0) {
       uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
       if (uniforms.uAlpha.value <= 0.0) {
