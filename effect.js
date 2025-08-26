@@ -1,24 +1,25 @@
-
 import * as THREE from 'three';
 
 /*
 =====================================================
-   GLOBAL EFFECT MANAGER
+   GLOBAL EFFECT MANAGER WITH TAB SUPPORT
 =====================================================
 */
 window.WebGLEffects = (function () {
   const effects = [];
   let renderer, scene, camera;
+  let currentTab = 'Tab 2'; // Default to list view
+  let animationId = null;
 
   function init() {
     // Shared renderer
-     renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-     renderer.setPixelRatio(window.devicePixelRatio);
-     renderer.setSize(window.innerWidth, window.innerHeight);
-     
-     // add class before appending
-     renderer.domElement.classList.add("global-webgl-canvas");
-     document.body.appendChild(renderer.domElement);
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // add class before appending
+    renderer.domElement.classList.add("global-webgl-canvas");
+    document.body.appendChild(renderer.domElement);
 
     // Shared scene + camera (can be overridden per effect)
     scene = new THREE.Scene();
@@ -32,6 +33,91 @@ window.WebGLEffects = (function () {
 
     animate();
     window.addEventListener("resize", onResize);
+    
+    // Listen for tab changes
+    initTabListener();
+  }
+
+  function initTabListener() {
+    // Listen for tab clicks
+    document.addEventListener('click', (e) => {
+      const tabLink = e.target.closest('[data-w-tab]');
+      if (tabLink) {
+        const newTab = tabLink.getAttribute('data-w-tab');
+        if (newTab !== currentTab) {
+          console.log('Tab changed from', currentTab, 'to', newTab);
+          switchTab(newTab);
+        }
+      }
+    });
+
+    // Also check for initial active tab
+    const activeTab = document.querySelector('.w-tab-link.w--current');
+    if (activeTab) {
+      currentTab = activeTab.getAttribute('data-w-tab') || 'Tab 2';
+      console.log('Initial tab:', currentTab);
+    }
+  }
+
+  function switchTab(newTab) {
+    const oldTab = currentTab;
+    currentTab = newTab;
+    
+    // Clean up old effects
+    cleanupEffects(oldTab);
+    
+    // Initialize new effects after a short delay to let DOM update
+    setTimeout(() => {
+      initTabEffects(newTab);
+    }, 100);
+  }
+
+  function cleanupEffects(tab) {
+    if (tab === 'Tab 1') {
+      // Clean up bulge effects
+      cleanupBulgeEffects();
+    } else if (tab === 'Tab 2') {
+      // Clean up list effects
+      cleanupListEffects();
+    }
+  }
+
+  function cleanupBulgeEffects() {
+    console.log('Cleaning up bulge effects');
+    const canvases = document.querySelectorAll('.work-canvas');
+    canvases.forEach(canvas => canvas.remove());
+    
+    // Reset image opacity
+    const images = document.querySelectorAll('[webgl-anime="image-hover"] img');
+    images.forEach(img => img.style.opacity = '1');
+  }
+
+  function cleanupListEffects() {
+    console.log('Cleaning up list effects');
+    // Remove list-specific effects from the global effects array
+    for (let i = effects.length - 1; i >= 0; i--) {
+      if (effects[i].type === 'list-hover') {
+        effects.splice(i, 1);
+      }
+    }
+  }
+
+  function initTabEffects(tab) {
+    console.log('Initializing effects for tab:', tab);
+    
+    if (tab === 'Tab 1') {
+      // Initialize bulge effects
+      setTimeout(() => {
+        initBulgeEffects();
+      }, 50);
+    } else if (tab === 'Tab 2') {
+      // Initialize list effects
+      const listEffect = HoverListEffect(renderer);
+      if (listEffect) {
+        listEffect.type = 'list-hover';
+        effects.push(listEffect);
+      }
+    }
   }
 
   function onResize() {
@@ -47,102 +133,37 @@ window.WebGLEffects = (function () {
   }
 
   function animate(time) {
-    requestAnimationFrame(animate);
+    animationId = requestAnimationFrame(animate);
     
-    // Clear the main canvas
-    renderer.setRenderTarget(null);
-    renderer.clear();
-    
-    // Update and render each effect
-    effects.forEach((e) => {
-      if (e.update) e.update(time);
-      if (e.scene && e.camera) {
-        renderer.render(e.scene, e.camera);
-      }
-    });
+    // Only render global effects for list view
+    if (currentTab === 'Tab 2') {
+      // Clear the main canvas
+      renderer.setRenderTarget(null);
+      renderer.clear();
+      
+      // Update and render each effect
+      effects.forEach((e) => {
+        if (e.update) e.update(time);
+        if (e.scene && e.camera) {
+          renderer.render(e.scene, e.camera);
+        }
+      });
+    }
   }
 
   init();
 
   // Expose the renderer so effects can use it
-  return { addEffect, renderer, scene, camera };
-})();
-
-/*
-☰☰☰☰☰☰☰☰☰☰☰☰☰
-Grid Hover Animation
-☰☰☰☰☰☰☰☰☰☰☰☰☰
-
-function GridAnimeEffect(globalRenderer) {
-  const image = document.querySelector("img[webgl-grid-anime]");
-  if (!image) {
-    console.warn("GridAnimeEffect: No image found with attribute 'webgl-grid-anime'");
-    return null;
-  }
-  
-  const wrapper = image.closest(".webgl-wrapper");
-  if (!wrapper) {
-    console.warn("GridAnimeEffect: No wrapper found with class 'webgl-wrapper'");
-    return null;
-  }
-  
-  const imgRatio = image.naturalWidth / image.naturalHeight || 1;
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(-imgRatio, imgRatio, 1, -1, 0.1, 10);
-  camera.position.z = 1;
-
-  const texture = new THREE.TextureLoader().load(image.src);
-  const uniforms = {
-    u_texture: { value: texture },
-    u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
-    u_prevMouse: { value: new THREE.Vector2(0.5, 0.5) },
-    u_aberrationIntensity: { value: 0 },
+  return { 
+    addEffect, 
+    renderer, 
+    scene, 
+    camera, 
+    switchTab,
+    getCurrentTab: () => currentTab,
+    initTabEffects
   };
-
-  const material = new THREE.ShaderMaterial({
-    uniforms,
-    vertexShader: `
-      varying vec2 vUv;
-      void main() { vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }
-    `,
-    fragmentShader: `
-      varying vec2 vUv;
-      uniform sampler2D u_texture;
-      void main() {
-        gl_FragColor = texture2D(u_texture, vUv);
-      }
-    `
-  });
-
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2 * imgRatio, 2), material);
-  scene.add(mesh);
-
-  let mouse = { x: 0.5, y: 0.5 };
-  let target = { x: 0.5, y: 0.5 };
-  let prev = { x: 0.5, y: 0.5 };
-  let intensity = 0;
-
-  wrapper.addEventListener("mousemove", (e) => {
-    const rect = wrapper.getBoundingClientRect();
-    prev = { ...target };
-    target.x = (e.clientX - rect.left) / rect.width;
-    target.y = (e.clientY - rect.top) / rect.height;
-    intensity = 1;
-  });
-
-  function update() {
-    mouse.x += (target.x - mouse.x) * 0.08;
-    mouse.y += (target.y - mouse.y) * 0.08;
-    uniforms.u_mouse.value.set(mouse.x, 1.0 - mouse.y);
-    uniforms.u_prevMouse.value.set(prev.x, 1.0 - prev.y);
-    uniforms.u_aberrationIntensity.value = intensity;
-    intensity = Math.max(0, intensity - 0.05);
-  }
-
-  return { scene, camera, update };
-}*/ 
-
+})();
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
@@ -150,9 +171,22 @@ Hover List Effect Animation
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
 */ 
 function HoverListEffect(globalRenderer) {
-  const wrapper = document.querySelector('[webgl-anime="list-hover-wrapper"]');
+  // Only initialize if we're on the list tab
+  if (window.WebGLEffects.getCurrentTab() !== 'Tab 2') {
+    console.log('Skipping list effect - wrong tab');
+    return null;
+  }
+
+  const wrapper = document.querySelector('[data-w-tab="Tab 2"]');
   if (!wrapper) {
-    console.warn("HoverListEffect: No wrapper found");
+    console.warn("HoverListEffect: No Tab 2 wrapper found");
+    return null;
+  }
+
+  // Check if tab is currently active
+  const isActive = wrapper.classList.contains('w--tab-active');
+  if (!isActive) {
+    console.log('List tab not active, skipping initialization');
     return null;
   }
 
@@ -284,7 +318,6 @@ function HoverListEffect(globalRenderer) {
 
       const img = link.querySelector('[webgl-anime="image-src"]');
       if (img) {
-        // Get image dimensions and position
         const rect = img.getBoundingClientRect();
         const imgRatio = img.naturalWidth / img.naturalHeight;
         const containerRatio = rect.width / rect.height;
@@ -298,26 +331,21 @@ function HoverListEffect(globalRenderer) {
           meshWidth = rect.height * imgRatio;
         }
 
-        // Set mesh scale
         mesh.scale.set(meshWidth, meshHeight, 1);
 
-        // FIXED POSITIONING: Convert screen coordinates to Three.js world coordinates
         const viewportCenterX = window.innerWidth / 2;
         const viewportCenterY = window.innerHeight / 2;
         
-        // Image center in screen coordinates
         const imageCenterX = rect.left + rect.width / 2;
         const imageCenterY = rect.top + rect.height / 2;
         
-        // Convert to Three.js coordinates (relative to viewport center)
         const offsetX = imageCenterX - viewportCenterX;
-        const offsetY = viewportCenterY - imageCenterY; // Y is flipped in Three.js
+        const offsetY = viewportCenterY - imageCenterY;
         
-        // Store the base position
         currentMeshPosition.set(offsetX, offsetY, 0);
         mesh.position.copy(currentMeshPosition);
         
-        console.log("Image positioned at:", offsetX, offsetY, "Screen rect:", rect);
+        console.log("Image positioned at:", offsetX, offsetY);
       }
     });
 
@@ -334,22 +362,20 @@ function HoverListEffect(globalRenderer) {
   });
 
   // RESIZE HANDLER
-  window.addEventListener("resize", () => {
+  const resizeHandler = () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.fov = (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI;
     camera.updateProjectionMatrix();
-  });
+  };
+  window.addEventListener("resize", resizeHandler);
 
   function update() {
     uniforms.uTime.value = Date.now() * 0.001;
 
-    // Only apply deformation when mesh is visible
     if (uniforms.uAlpha.value > 0) {
-      // Smooth mouse offset for deformation
       offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
       offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
 
-      // Apply deformation offsets
       uniforms.uOffset.value.set(
         (targetX - offset.x) * SETTINGS.deformation.strength,
         -(targetY - offset.y) * SETTINGS.deformation.strength
@@ -360,11 +386,9 @@ function HoverListEffect(globalRenderer) {
         (targetY - offset.y) * 0.001
       );
 
-      // Keep mesh at its base position (don't move it around)
       mesh.position.copy(currentMeshPosition);
     }
 
-    // Handle texture transitions
     if (transitioning && uniforms.uMixFactor.value < 1.0) {
       uniforms.uMixFactor.value += SETTINGS.transition.speed;
       if (uniforms.uMixFactor.value >= 1.0) {
@@ -373,7 +397,6 @@ function HoverListEffect(globalRenderer) {
       }
     }
 
-    // Handle fade out
     if (fadingOut && uniforms.uAlpha.value > 0.0) {
       uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
       if (uniforms.uAlpha.value <= 0.0) {
@@ -384,21 +407,41 @@ function HoverListEffect(globalRenderer) {
     }
   }
 
-  return { scene, camera, update };
+  // Cleanup function
+  const cleanup = () => {
+    window.removeEventListener("resize", resizeHandler);
+    scene.clear();
+    geometry.dispose();
+    material.dispose();
+    textures.forEach(tex => tex.dispose());
+  };
+
+  return { scene, camera, update, cleanup, type: 'list-hover' };
 }
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-Buldge Effect
+Bulge Effect for Grid Tab
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+*/
+function initBulgeEffects() {
+  console.log("initBulgeEffects called");
 
-function CardHoverEffect(renderer) {
-  const wrappers = Array.from(document.querySelectorAll('[webgl-anime="image-hover"]'));
-  console.log("CardHoverEffect: Found wrappers", wrappers.length);
+  // Only run if we're on the grid tab
+  if (window.WebGLEffects.getCurrentTab() !== 'Tab 1') {
+    console.log('Skipping bulge effect - wrong tab');
+    return;
+  }
+
+  const cards = Array.from(
+    document.querySelectorAll('[data-w-tab="Tab 1"] [webgl-anime="image-hover"]')
+  );
+  console.log("Cards found:", cards.length);
 
   const loader = new THREE.TextureLoader();
   const planes = [];
 
+  // Shader code
   const vertexShader = `
     varying vec2 vUv;
     void main() {
@@ -424,130 +467,6 @@ function CardHoverEffect(renderer) {
       gl_FragColor = color;
     }
   `;
-
-  // Init planes for each wrapper
-  wrappers.forEach((wrapper, idx) => {
-    const img = wrapper.querySelector('img');
-    if (!img) {
-      console.warn("CardHoverEffect: No img found in wrapper", idx);
-      return;
-    }
-
-    console.log("CardHoverEffect: Loading image for wrapper", idx, img.src);
-    const texture = loader.load(img.src);
-
-    const width = wrapper.offsetWidth;
-    const height = wrapper.offsetHeight;
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
-    camera.position.z = 1;
-
-    const geometry = new THREE.PlaneGeometry(1, 1);
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        uTexture: { value: texture },
-        uMouse: { value: new THREE.Vector2(-1, -1) },
-        uHover: { value: 0 }
-      },
-      vertexShader,
-      fragmentShader
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    scene.add(mesh);
-
-    planes.push({ wrapper, scene, camera, mesh, material });
-
-    wrapper.addEventListener('mousemove', e => {
-      const rect = wrapper.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = 1 - (e.clientY - rect.top) / rect.height;
-      material.uniforms.uMouse.value.set(x, y);
-      material.uniforms.uHover.value += (1.0 - material.uniforms.uHover.value) * 0.1;
-      // console.log(`Wrapper ${idx} mousemove: x=${x} y=${y} hover=${material.uniforms.uHover.value}`);
-    });
-
-    wrapper.addEventListener('mouseleave', () => {
-      // decay handled in update
-      // console.log("Wrapper", idx, "mouseleave");
-    });
-  });
-
-  // Update function called per frame
- 
-  // Update function for CardHoverEffect - replace your existing update function
-return {
-  update: () => {
-    planes.forEach((p, idx) => {
-      const rect = p.wrapper.getBoundingClientRect();
-
-      // FIXED: Convert screen coordinates to NDC properly
-      const viewportCenterX = window.innerWidth / 2;
-      const viewportCenterY = window.innerHeight / 2;
-      
-      // Center of wrapper in screen coordinates
-      const wrapperCenterX = rect.left + rect.width / 2;
-      const wrapperCenterY = rect.top + rect.height / 2;
-      
-      // Convert to normalized device coordinates (-1 to 1)
-      const ndcX = (wrapperCenterX - viewportCenterX) / viewportCenterX;
-      const ndcY = (viewportCenterY - wrapperCenterY) / viewportCenterY;
-
-      // Scale relative to viewport
-      const scaleX = (rect.width / window.innerWidth) * 2;
-      const scaleY = (rect.height / window.innerHeight) * 2;
-
-      p.mesh.position.set(ndcX, ndcY, 0);
-      p.mesh.scale.set(scaleX, scaleY, 1);
-
-      // Hover decay
-      p.material.uniforms.uHover.value *= 0.9;
-
-      // Render each card's scene
-      renderer.render(p.scene, p.camera);
-    });
-  }
-};
-}
-*/ 
-function initBludge() {
-  console.log("initBludge called");
-
-  const cards = Array.from(
-    document.querySelectorAll('[webgl-anime="image-hover"]')
-  );
-  console.log("Cards found:", cards.length);
-
-  const loader = new THREE.TextureLoader();
-  const planes = [];
-
-  // Shader code
-  const vertexShader = `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-}
-`;
-
-  const fragmentShader = `
-precision highp float;
-uniform sampler2D uTexture;
-uniform vec2 uMouse;
-uniform float uHover;
-varying vec2 vUv;
-void main() {
-  vec2 uv = vUv;
-  vec2 diff = uv - uMouse;
-  float dist = length(diff);
-  uv -= diff * 0.25 * uHover * exp(-3.0*dist*dist);
-  vec4 color = texture2D(uTexture, uv);
-  float glow = exp(-3.0*dist*dist) * 0.25;
-  color.rgb += glow;
-  gl_FragColor = color;
-}
-`;
 
   cards.forEach((card, i) => {
     console.log("Processing card:", i);
@@ -599,20 +518,32 @@ void main() {
     const material = new THREE.ShaderMaterial({
       uniforms: {
         uTexture: { value: texture },
-        uMouse: { value: new THREE.Vector2(0.5, 0.5) }, // start centered
+        uMouse: { value: new THREE.Vector2(0.5, 0.5) },
         uHover: { value: 0 },
       },
       vertexShader,
       fragmentShader,
     });
 
-    // Plane at unit scale, then scale to card size
     const geometry = new THREE.PlaneGeometry(1, 1);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.scale.set(width, height, 1);
     scene.add(mesh);
 
-    planes.push({ card, renderer, scene, camera, material });
+    let animationId;
+
+    const cardData = { 
+      card, 
+      renderer, 
+      scene, 
+      camera, 
+      material, 
+      geometry, 
+      texture,
+      animationId: null
+    };
+    
+    planes.push(cardData);
 
     // Mouse move
     card.addEventListener("mousemove", (e) => {
@@ -629,14 +560,19 @@ void main() {
     });
 
     function animate() {
-      requestAnimationFrame(animate);
-      material.uniforms.uHover.value *= 0.97; // slower fade so it’s visible
-      renderer.render(scene, camera);
+      // Only animate if we're still on the grid tab
+      if (window.WebGLEffects.getCurrentTab() === 'Tab 1') {
+        cardData.animationId = requestAnimationFrame(animate);
+        material.uniforms.uHover.value *= 0.97;
+        renderer.render(scene, camera);
+      }
     }
     animate();
 
     // Responsive
-    window.addEventListener("resize", () => {
+    const resizeHandler = () => {
+      if (window.WebGLEffects.getCurrentTab() !== 'Tab 1') return;
+      
       const width = card.offsetWidth;
       const height = card.offsetHeight;
       renderer.setSize(width, height);
@@ -647,30 +583,78 @@ void main() {
       camera.updateProjectionMatrix();
       mesh.scale.set(width, height, 1);
       console.log("Resized card", i);
-    });
+    };
+    
+    window.addEventListener("resize", resizeHandler);
+    
+    // Store resize handler for cleanup
+    cardData.resizeHandler = resizeHandler;
   });
+
+  // Store planes globally for cleanup
+  window.currentBulgePlanes = planes;
+}
+
+// Cleanup function for bulge effects
+function cleanupBulgeEffects() {
+  if (window.currentBulgePlanes) {
+    window.currentBulgePlanes.forEach((plane, i) => {
+      console.log("Cleaning up plane", i);
+      
+      // Cancel animation
+      if (plane.animationId) {
+        cancelAnimationFrame(plane.animationId);
+      }
+      
+      // Remove event listeners
+      if (plane.resizeHandler) {
+        window.removeEventListener("resize", plane.resizeHandler);
+      }
+      
+      // Dispose resources
+      if (plane.geometry) plane.geometry.dispose();
+      if (plane.material) plane.material.dispose();
+      if (plane.texture) plane.texture.dispose();
+      if (plane.renderer) plane.renderer.dispose();
+      
+      // Remove canvas
+      const canvas = plane.card.querySelector('.work-canvas');
+      if (canvas) canvas.remove();
+      
+      // Show original image
+      const img = plane.card.querySelector('img');
+      if (img) img.style.opacity = '1';
+    });
+    
+    window.currentBulgePlanes = [];
+  }
 }
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-Attach effects on load
+Initialize on load
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */
-
 document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     console.log("DOMContentLoaded init");
-    initBludge();
-    // window.WebGLEffects.addEffect(CardHoverEffect);
-    window.WebGLEffects.addEffect(HoverListEffect);
+    
+    // Initialize effects based on current tab
+    const currentTab = window.WebGLEffects.getCurrentTab();
+    console.log("Current tab on load:", currentTab);
+    
+    window.WebGLEffects.initTabEffects(currentTab);
   }, 100);
 });
 
 if (document.readyState !== "loading") {
   setTimeout(() => {
     console.log("Page already loaded, init immediately");
-    initBludge();
-    // window.WebGLEffects.addEffect(CardHoverEffect);
-    window.WebGLEffects.addEffect(HoverListEffect);
+    
+    // Initialize effects based on current tab
+    const currentTab = window.WebGLEffects.getCurrentTab();
+    console.log("Current tab on load:", currentTab);
+    
+    window.WebGLEffects.initTabEffects(currentTab);
   }, 100);
 }
