@@ -1,126 +1,210 @@
-import * as THREE from "three"
+import * as THREE from 'three';
 
 /*
 =====================================================
    GLOBAL EFFECT MANAGER WITH TAB SUPPORT
 =====================================================
 */
-window.WebGLEffects = (() => {
-  const effects = []
-  let renderer, scene, camera
-  let currentTab = "Tab 1" // Default to grid view
-  let animationId = null
-  let scrollBlurEffect = null
+window.WebGLEffects = (function () {
+  const effects = [];
+  let renderer, scene, camera;
+  let currentTab = 'Tab 1'; // Default to grid view
+  let animationId = null;
+  let scrollBlurEffect = null;
 
   function init() {
     // Shared renderer
-    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
-    renderer.setPixelRatio(window.devicePixelRatio)
-    renderer.setSize(window.innerWidth, window.innerHeight)
-
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    
     // add class and styling before appending
-    renderer.domElement.classList.add("global-webgl-canvas")
-    renderer.domElement.classList.add("scroll-blur-canvas")
-    renderer.domElement.style.position = "fixed"
-    renderer.domElement.style.top = "0"
-    renderer.domElement.style.left = "0"
-    renderer.domElement.style.width = "100%"
-    renderer.domElement.style.height = "100%"
-    renderer.domElement.style.zIndex = "1" // Lower z-index to not interfere with other animations
-    renderer.domElement.style.pointerEvents = "none"
-    document.body.appendChild(renderer.domElement)
+    renderer.domElement.classList.add("global-webgl-canvas");
+    renderer.domElement.classList.add("scroll-blur-canvas"); 
+    renderer.domElement.style.position = "fixed";
+    renderer.domElement.style.top = "0";
+    renderer.domElement.style.left = "0";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.zIndex = "1"; // Lower z-index to not interfere with other animations
+    renderer.domElement.style.pointerEvents = "none";
+    document.body.appendChild(renderer.domElement);
 
     // Shared scene + camera
-    scene = new THREE.Scene()
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100)
-    camera.position.z = 5
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(
+      45,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
+    camera.position.z = 5;
 
     // Initialize scroll blur effect
-    scrollBlurEffect = initScrollBlurEffect()
-
-    animate()
-    window.addEventListener("resize", onResize)
-
+    initScrollBlurEffect();
+    
+    animate();
+    window.addEventListener("resize", onResize);
+    
     // Listen for tab changes
-    initTabListener()
-
-    console.log("Global WebGL renderer initialized with scroll blur")
-  }
-
-  function onResize() {
-    renderer.setSize(window.innerWidth, window.innerHeight)
-    camera.aspect = window.innerWidth / window.innerHeight
-    camera.updateProjectionMatrix()
-    scrollBlurEffect.cleanup()
-    scrollBlurEffect = initScrollBlurEffect()
+    initTabListener();
+    
+    console.log('Global WebGL renderer initialized with scroll blur');
   }
 
   function initTabListener() {
-    // Placeholder for tab listener initialization
-    // This should be implemented based on the specific tab management system used
-    console.log("Tab listener initialized")
+    // Listen for tab clicks
+    document.addEventListener('click', (e) => {
+      const tabLink = e.target.closest('[data-w-tab]');
+      if (tabLink) {
+        const newTab = tabLink.getAttribute('data-w-tab');
+        if (newTab !== currentTab) {
+          console.log('Tab changed from', currentTab, 'to', newTab);
+          switchTab(newTab);
+        }
+      }
+    });
+
+    // Also check for initial active tab
+    const activeTab = document.querySelector('.w-tab-link.w--current');
+    if (activeTab) {
+      currentTab = activeTab.getAttribute('data-w-tab') || 'Tab 1';
+      console.log('Initial tab:', currentTab);
+    }
+
+    // Also listen for Webflow's tab change events
+    document.addEventListener('w-tab-change', (e) => {
+      console.log('Webflow tab change detected', e.detail);
+      if (e.detail && e.detail.tab !== currentTab) {
+        switchTab(e.detail.tab);
+      }
+    });
   }
 
-  function addEffect(effect) {
-    effects.push(effect)
+  function switchTab(newTab) {
+    const oldTab = currentTab;
+    currentTab = newTab;
+    
+    // Clean up old effects
+    cleanupEffects(oldTab);
+    
+    // Initialize new effects after a short delay to let DOM update
+    setTimeout(() => {
+      initTabEffects(newTab);
+    }, 100);
   }
 
-  function switchTab(tab) {
-    currentTab = tab
-    console.log("Switched to tab:", tab)
+  function cleanupEffects(tab) {
+    if (tab === 'Tab 1') {
+      // Clean up bulge effects
+      cleanupBulgeEffects();
+    } else if (tab === 'Tab 2') {
+      // Clean up list effects
+      cleanupListEffects();
+    }
   }
 
-  function initTabEffects() {
-    // Placeholder for initializing tab-specific effects
-    console.log("Tab-specific effects initialized")
+  function cleanupBulgeEffects() {
+    console.log('Cleaning up bulge effects');
+    const canvases = document.querySelectorAll('.work-canvas');
+    canvases.forEach(canvas => canvas.remove());
+    
+    // Reset image opacity
+    const images = document.querySelectorAll('[webgl-anime="image-hover"] img');
+    images.forEach(img => img.style.opacity = '1');
+  }
+
+  function cleanupListEffects() {
+    console.log('Cleaning up list effects');
+    // Remove list-specific effects from the global effects array
+    for (let i = effects.length - 1; i >= 0; i--) {
+      if (effects[i].type === 'list-hover') {
+        if (effects[i].cleanup) {
+          effects[i].cleanup();
+        }
+        effects.splice(i, 1);
+      }
+    }
+  }
+
+  function initTabEffects(tab) {
+    console.log('Initializing effects for tab:', tab);
+    
+    if (tab === 'Tab 1') {
+      // Initialize bulge effects
+      setTimeout(() => {
+        initBulgeEffects();
+      }, 50);
+    } else if (tab === 'Tab 2') {
+      // Initialize list effects
+      const listEffect = HoverListEffect(renderer);
+      if (listEffect) {
+        listEffect.type = 'list-hover';
+        effects.push(listEffect);
+      }
+    }
+  }
+
+  function onResize() {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
+
+  function addEffect(effectFn) {
+    const effect = effectFn(renderer, scene, camera);
+    if (!effect) return; // gracefully skip if it didn't init
+    effects.push(effect);
   }
 
   function animate(time) {
-    animationId = requestAnimationFrame(animate)
-
+    animationId = requestAnimationFrame(animate);
+    
     // Always render scroll blur effect (global background)
     if (scrollBlurEffect) {
-      scrollBlurEffect.update(time)
-      renderer.setRenderTarget(null)
-      renderer.clear()
-      renderer.render(scrollBlurEffect.scene, scrollBlurEffect.camera)
+      scrollBlurEffect.update(time);
+      renderer.setRenderTarget(null);
+      renderer.clear();
+      renderer.render(scrollBlurEffect.scene, scrollBlurEffect.camera);
     }
-
+    
     // Render tab-specific effects on top
-    if (currentTab === "Tab 2") {
+    if (currentTab === 'Tab 2') {
       // Update and render list effects
       effects.forEach((e) => {
-        if (e.update) e.update(time)
-        if (e.scene && e.camera && e.type === "list-hover") {
-          renderer.render(e.scene, e.camera)
+        if (e.update) e.update(time);
+        if (e.scene && e.camera && e.type === 'list-hover') {
+          renderer.render(e.scene, e.camera);
         }
-      })
+      });
     }
   }
 
-  init()
+  init();
 
   // Expose the renderer so effects can use it
-  return {
-    addEffect,
-    renderer,
-    scene,
-    camera,
+  return { 
+    addEffect, 
+    renderer, 
+    scene, 
+    camera, 
     switchTab,
     getCurrentTab: () => currentTab,
     initTabEffects,
-    scrollBlurEffect: () => scrollBlurEffect,
-  }
-})()
+    scrollBlurEffect: () => scrollBlurEffect
+  };
+})();
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-Progressive Blur Scroll Effect for Section Reveals - FIXED
+Progressive Blur Scroll Effect for Section Reveals
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */
 function initScrollBlurEffect() {
-  const scene = new THREE.Scene()
-  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+  if (!window.WebGLEffects) window.WebGLEffects = {};
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
   const vertexShader = `
     varying vec2 vUv;
@@ -128,7 +212,7 @@ function initScrollBlurEffect() {
       vUv = uv;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
-  `
+  `;
 
   const fragmentShader = `
     uniform float uTime;
@@ -141,306 +225,670 @@ function initScrollBlurEffect() {
       return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
     }
     
-    vec3 blur(vec2 uv, float amount) {
-      vec3 color = vec3(0.0);
-      float total = 0.0;
-      
-      for(float x = -4.0; x <= 4.0; x += 1.0) {
-        for(float y = -4.0; y <= 4.0; y += 1.0) {
-          vec2 offset = vec2(x, y) * amount * 0.01;
-          float weight = exp(-(x*x + y*y) * 0.1);
-          color += vec3(1.0) * weight;
-          total += weight;
-        }
-      }
-      
-      return color / total;
-    }
-    
     void main() {
       vec2 st = vUv;
       
-      float blurZone;
-      float edgeFade;
+      // shift blur vertically based on scroll direction
+      st.y += uScrollDir * 0.2 * (1.0 - uScrollProgress); 
       
-      if (uScrollDir > 0.0) {
-        blurZone = smoothstep(0.4, 1.0, st.y);
-        edgeFade = smoothstep(0.2, 0.8, st.y);
-      } else {
-        blurZone = smoothstep(0.4, 1.0, 1.0 - st.y);
-        edgeFade = smoothstep(0.2, 0.8, 1.0 - st.y);
-      }
+      float n = noise(st * 10.0 + uTime * 0.5);
+      float blurAmount = smoothstep(0.0, 1.0, uScrollProgress);
+
+      // directional gradient (top vs bottom)
+      float grad = (uScrollDir > 0.0) ? st.y : (1.0 - st.y);
+
+      vec3 color1 = vec3(0.1, 0.1, 0.2);
+      vec3 color2 = vec3(0.05, 0.05, 0.1);
       
-      float blurAmount = blurZone * uScrollProgress * 2.0;
-      vec3 blurredColor = blur(st, blurAmount);
-      
-      vec3 whiteBase = vec3(0.9, 0.92, 0.95);
-      vec3 whiteHighlight = vec3(1.0, 1.0, 1.0);
-      
-      float n = noise(st * 6.0 + uTime * 0.2);
-      vec3 finalColor = mix(whiteBase, whiteHighlight, n * 0.4) * blurredColor;
-      
-      float opacity = blurAmount * edgeFade * 1.2;
-      opacity = clamp(opacity, 0.0, 0.9);
-      
-      gl_FragColor = vec4(finalColor, opacity);
+      vec3 finalColor = mix(color1, color2, grad);
+      finalColor *= (1.0 - blurAmount * 0.8);
+
+      float shimmer = sin(uTime * 2.0 + st.y * 10.0) * 0.1 * (1.0 - blurAmount);
+      finalColor += shimmer;
+
+      float reveal = smoothstep(0.3, 0.7, 1.0 - blurAmount + n * 0.1);
+      gl_FragColor = vec4(finalColor, reveal * 0.4);
     }
-  `
+  `;
 
   const uniforms = {
     uTime: { value: 0 },
     uScrollProgress: { value: 0 },
-    uScrollDir: { value: 1.0 },
-    uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-  }
+    uScrollDir: { value: 1.0 }, // start assuming scrolling down
+    uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+  };
 
-  const geometry = new THREE.PlaneGeometry(2, 2)
+  const geometry = new THREE.PlaneGeometry(2, 2);
   const material = new THREE.ShaderMaterial({
     uniforms,
     vertexShader,
     fragmentShader,
     transparent: true,
-    blending: THREE.NormalBlending,
-  })
+    blending: THREE.NormalBlending
+  });
 
-  const mesh = new THREE.Mesh(geometry, material)
-  scene.add(mesh)
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
 
-  let lastScroll = window.pageYOffset
-  let scrollVelocity = 0
-  let smoothScrollDir = 1.0
-  let scrollProgress = 0
-
+  let lastScroll = window.pageYOffset;
   const updateScroll = () => {
-    const scrolled = window.pageYOffset
-    const maxScroll = Math.max(document.body.scrollHeight - window.innerHeight, 1)
+    const scrolled = window.pageYOffset;
+    const maxScroll = document.body.scrollHeight - window.innerHeight;
 
-    const newVelocity = scrolled - lastScroll
-    scrollVelocity = scrollVelocity * 0.8 + newVelocity * 0.2 // Smooth velocity
+    // update scroll progress
+    uniforms.uScrollProgress.value = Math.min(scrolled / maxScroll, 1);
 
-    const targetProgress = Math.min(Math.max(scrolled / maxScroll, 0), 1)
-    scrollProgress = scrollProgress * 0.9 + targetProgress * 0.1
-    uniforms.uScrollProgress.value = scrollProgress
+    // detect direction
+    uniforms.uScrollDir.value = (scrolled > lastScroll) ? 1.0 : -1.0;
+    lastScroll = scrolled;
+  };
 
-    if (Math.abs(scrollVelocity) > 0.5) {
-      const targetDir = scrollVelocity > 0 ? 1.0 : -1.0
-      smoothScrollDir = smoothScrollDir * 0.85 + targetDir * 0.15
-      uniforms.uScrollDir.value = smoothScrollDir > 0 ? 1.0 : -1.0
-    }
-
-    lastScroll = scrolled
-  }
-
-  window.addEventListener("scroll", updateScroll, { passive: true })
+  window.addEventListener("scroll", updateScroll, { passive: true });
 
   const update = (time) => {
-    uniforms.uTime.value = time * 0.001
-  }
+    uniforms.uTime.value = time * 0.001;
+  };
 
   const resize = () => {
-    uniforms.uResolution.value.set(window.innerWidth, window.innerHeight)
-  }
-  window.addEventListener("resize", resize)
+    uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+  };
+  window.addEventListener("resize", resize);
 
-  const cleanup = () => {
-    window.removeEventListener("scroll", updateScroll)
-    window.removeEventListener("resize", resize)
-    geometry.dispose()
-    material.dispose()
-  }
-
-  return {
+  window.WebGLEffects.scrollBlurEffect = {
     scene,
     camera,
     update,
-    cleanup,
-  }
+    cleanup: () => {
+      window.removeEventListener("scroll", updateScroll);
+      window.removeEventListener("resize", resize);
+      geometry.dispose();
+      material.dispose();
+    }
+  };
+
+  return window.WebGLEffects.scrollBlurEffect;
 }
+
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
-Enhanced Hover List Effect Animation - FIXED POSITIONING
+Enhanced Hover List Effect Animation
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
-*/
+*/ 
 function HoverListEffect(globalRenderer) {
-  if (window.WebGLEffects.getCurrentTab() !== "Tab 2") {
-    console.log("Skipping list effect - wrong tab")
-    return null
+  // Only initialize if we're on the list tab
+  if (window.WebGLEffects.getCurrentTab() !== 'Tab 2') {
+    console.log('Skipping list effect - wrong tab');
+    return null;
   }
 
-  const wrapper = document.querySelector("#tab-list-pane") || document.querySelector('[data-w-tab="Tab 2"]')
+  // Look for the actual tab content div that contains the list items
+  const wrapper = document.querySelector('#tab-list-pane') || document.querySelector('[data-w-tab="Tab 2"]');
   if (!wrapper) {
-    console.warn("HoverListEffect: No Tab 2 wrapper found")
-    return null
+    console.warn("HoverListEffect: No Tab 2 wrapper found");
+    return null;
   }
 
-  console.log("Initializing Enhanced HoverListEffect for Tab 2", wrapper)
+  console.log('Initializing Enhanced HoverListEffect for Tab 2', wrapper);
 
+  // Enhanced settings for smoother following
   const SETTINGS = {
     deformation: {
-      strength: 0.00055,
-      smoothing: 0.05,
+      strength: 0.00055,  
+      smoothing: 0.05     // Made much smoother (reduced from 0.1)
     },
     transition: {
       speed: 0.05,
       fadeInSpeed: 0.08,
-      fadeOutSpeed: 0.06,
+      fadeOutSpeed: 0.06
     },
     effects: {
       rgbSplit: 0.005,
       rgbAnimation: 0.5,
-      rgbSpeed: 0.002,
+      rgbSpeed: 0.002
     },
     mesh: {
       baseSize: 300,
-      segments: 20,
+      segments: 20
     },
     mouse: {
-      lerpFactor: 0.08,
-      responsiveness: 0.6,
-    },
-  }
+      lerpFactor: 0.08,    // Smooth mouse following
+      responsiveness: 0.6   // How much the effect responds to movement
+    }
+  };
 
-  const scene = new THREE.Scene()
-  const perspective = 1000
-  const offset = new THREE.Vector2(0, 0)
-  let targetX = 0,
-    targetY = 0
-  let currentIndex = -1
-  let transitioning = false,
-    fadingOut = false
+  const vertexShader = `
+    uniform vec2 uOffset;
+    varying vec2 vUv;
 
+    float M_PI = 3.141529;
+
+    vec3 deformationCurve(vec3 position, vec2 uv, vec2 offset){
+        position.x += (sin(uv.y * M_PI) * offset.x);
+        position.y += (sin(uv.x * M_PI) * offset.y);
+        return position;
+    }
+
+    void main(){
+        vUv = uv;
+        vec3 newPosition = deformationCurve(position, uv, uOffset);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+    }
+  `;
+
+  const fragmentShader = `
+    uniform sampler2D uTexture;
+    uniform sampler2D uPrevTexture;
+    uniform float uAlpha;
+    uniform float uMixFactor;
+    uniform vec2 uRGBOffset;
+    uniform float uTime;
+    varying vec2 vUv;
+
+    void main(){
+        // Ripple effect for RGB offset
+        vec2 center = vec2(0.5, 0.5);
+        float distance = length(vUv - center);
+        float ripple = sin(distance * 20.0 - uTime * 5.0) * 0.02;
+        
+        // RGB split with ripple effect
+        float offsetStrength = 0.01;
+        vec2 rippleOffset = uRGBOffset + vec2(ripple);
+        
+        // RGB split sampling with ripple
+        vec4 texR = texture2D(uTexture, vUv + rippleOffset * offsetStrength);
+        vec4 texG = texture2D(uTexture, vUv);
+        vec4 texB = texture2D(uTexture, vUv - rippleOffset * offsetStrength);
+        
+        vec3 newColor = vec3(texR.r, texG.g, texB.b);
+
+        // Previous texture with same RGB split ripple
+        vec4 prevTexR = texture2D(uPrevTexture, vUv + rippleOffset * offsetStrength);
+        vec4 prevTexG = texture2D(uPrevTexture, vUv);
+        vec4 prevTexB = texture2D(uPrevTexture, vUv - rippleOffset * offsetStrength);
+        
+        vec3 prevColor = vec3(prevTexR.r, prevTexG.g, prevTexB.b);
+
+        // crossfade between previous and new texture
+        vec3 finalColor = mix(prevColor, newColor, uMixFactor);
+
+        gl_FragColor = vec4(finalColor, uAlpha);
+    }
+  `;
+
+  const scene = new THREE.Scene();
+  const perspective = 1000;
+  let offset = new THREE.Vector2(0, 0);
+  let targetX = 0, targetY = 0;
+  let currentIndex = -1;
+  let transitioning = false, fadingOut = false;
+
+  // CAMERA - Fixed for viewport
   const camera = new THREE.PerspectiveCamera(
     (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI,
     window.innerWidth / window.innerHeight,
     0.1,
-    1000,
-  )
-  camera.position.set(0, 0, perspective)
+    1000
+  );
+  camera.position.set(0, 0, perspective);
 
+  // UNIFORMS
   const uniforms = {
-    uTime: { value: 0 },
-    uAlpha: { value: 0 },
-    uOffset: { value: new THREE.Vector2(0, 0) },
-    uRGBOffset: { value: new THREE.Vector2(0, 0) },
-    uMixFactor: { value: 0 },
+    uTexture: { value: null },
     uPrevTexture: { value: null },
+    uAlpha: { value: 0.0 },
+    uOffset: { value: new THREE.Vector2(0.0, 0.0) },
+    uMixFactor: { value: 1.0 },
+    uRGBOffset: { value: new THREE.Vector2(0.0, 0.0) },
+    uTime: { value: 0.0 }
+  };
+
+  // Enhanced texture loading with better fallbacks
+  function loadTextures() {
+    const links = [...wrapper.querySelectorAll('[webgl-anime="list-item"]')];
+    console.log('Found list items:', links.length);
+    
+    let textures = links.map((link, idx) => {
+      const img = link.querySelector('[webgl-anime="image-src"]');
+      if (!img) {
+        console.warn('No image found for list item', idx);
+        return null;
+      }
+      console.log('Loading texture for item', idx, img.src);
+      const tex = new THREE.TextureLoader().load(img.src, 
+        () => console.log('Texture loaded successfully for item', idx),
+        undefined,
+        (err) => console.error('Failed to load texture for item', idx, err)
+      );
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      return tex;
+    }).filter(tex => tex !== null);
+
+    // Fallback if no textures found
+    if (textures.length === 0) {
+      console.log('No textures loaded with webgl-anime attributes, trying fallback...');
+      const fallbackLinks = [...wrapper.querySelectorAll('.portfolio20_item-link')];
+      console.log('Found fallback portfolio items:', fallbackLinks.length);
+      
+      textures = fallbackLinks.map((item, idx) => {
+        const img = item.querySelector('img');
+        if (!img) return null;
+        console.log('Loading fallback texture for item', idx, img.src);
+        const tex = new THREE.TextureLoader().load(img.src);
+        tex.minFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        return tex;
+      }).filter(tex => tex !== null);
+      
+      // Update links array if fallback worked
+      if (textures.length > 0) {
+        links.length = 0;
+        links.push(...fallbackLinks);
+      }
+    }
+
+    return { links, textures };
   }
 
-  const geometry = new THREE.PlaneGeometry(2, 2)
+  const { links, textures } = loadTextures();
+  console.log('Final loaded textures:', textures.length);
+
+  // MESH
+  const geometry = new THREE.PlaneGeometry(1, 1, SETTINGS.mesh.segments, SETTINGS.mesh.segments);
   const material = new THREE.ShaderMaterial({
     uniforms,
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float uTime;
-      uniform float uAlpha;
-      uniform vec2 uOffset;
-      uniform vec2 uRGBOffset;
-      uniform float uMixFactor;
-      uniform sampler2D uPrevTexture;
-      varying vec2 vUv;
-      
-      float noise(vec2 st) {
-        return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
-      }
-      
-      void main() {
-        vec2 st = vUv;
-        vec2 offsetSt = st + uOffset;
-        vec2 rgbSt = st + uRGBOffset;
-        
-        vec4 color = texture2D(uPrevTexture, offsetSt);
-        vec4 rgbColor = texture2D(uPrevTexture, rgbSt);
-        
-        color.rgb += rgbColor.rgb * uAlpha;
-        
-        gl_FragColor = mix(color, vec4(1.0), uMixFactor);
-      }
-    `,
-    transparent: true,
-    blending: THREE.NormalBlending,
-  })
+    vertexShader,
+    fragmentShader,
+    transparent: true
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
 
-  const mesh = new THREE.Mesh(geometry, material)
-  scene.add(mesh)
+  // Lerp function for smooth transitions
+  function lerp(start, end, t) {
+    return start * (1.0 - t) + end * t;
+  }
 
+  // ENHANCED LINK EVENTS
+  links.forEach((link, idx) => {
+    if (!textures[idx]) {
+      console.warn('No texture for link', idx);
+      return;
+    }
+    
+    console.log('Setting up enhanced events for link', idx, link);
+    
+    link.addEventListener("mouseenter", () => {
+      console.log("Mouse entered link", idx);
+
+      uniforms.uPrevTexture.value = uniforms.uTexture.value;
+      uniforms.uTexture.value = textures[idx];
+      uniforms.uAlpha.value = 1.0;
+      uniforms.uMixFactor.value = 0.0;
+
+      currentIndex = idx;
+      transitioning = true;
+      fadingOut = false;
+
+      // Enhanced image scaling based on aspect ratio
+      const img = link.querySelector('[webgl-anime="image-src"]') || link.querySelector('img');
+      if (img) {
+        const aspect = img.naturalWidth / img.naturalHeight;
+        mesh.scale.set(SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize, 1);
+        console.log("Enhanced scaling applied:", SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize);
+      }
+    });
+
+    link.addEventListener("mouseleave", () => {
+      console.log("Mouse left link", idx);
+      fadingOut = true;
+    });
+  });
+
+  // ENHANCED MOUSE MOVE - Better tracking within wrapper
   wrapper.addEventListener("mousemove", (e) => {
-    if (window.WebGLEffects.getCurrentTab() !== "Tab 2" || currentIndex === -1) return
+    // Only track mouse when we're on the list tab and have an active effect
+    if (window.WebGLEffects.getCurrentTab() !== 'Tab 2' || currentIndex === -1) return;
+    
+    const rect = wrapper.getBoundingClientRect();
+    targetX = e.clientX - rect.left;
+    targetY = e.clientY - rect.top;
+  });
 
-    const rect = wrapper.getBoundingClientRect()
-
-    targetX = e.clientX - rect.left
-    targetY = e.clientY - rect.top
-
-    console.log("Mouse move - targetX:", targetX, "targetY:", targetY, "scroll:", window.pageYOffset)
-  })
+  // RESIZE HANDLER
+  const resizeHandler = () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.fov = (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI;
+    camera.updateProjectionMatrix();
+  };
+  window.addEventListener("resize", resizeHandler);
 
   function update() {
-    uniforms.uTime.value = Date.now() * 0.001
+    // Update time for ripple effect
+    uniforms.uTime.value = Date.now() * 0.001;
 
     if (uniforms.uAlpha.value > 0 && currentIndex >= 0) {
-      offset.x = lerp(offset.x, targetX, SETTINGS.mouse.lerpFactor)
-      offset.y = lerp(offset.y, targetY, SETTINGS.mouse.lerpFactor)
+      // Much smoother lerping with enhanced responsiveness
+      offset.x = lerp(offset.x, targetX, SETTINGS.mouse.lerpFactor);
+      offset.y = lerp(offset.y, targetY, SETTINGS.mouse.lerpFactor);
 
-      const deltaX = (targetX - offset.x) * SETTINGS.mouse.responsiveness
-      const deltaY = (targetY - offset.y) * SETTINGS.mouse.responsiveness
+      // Smoother deformation with better responsiveness
+      const deltaX = (targetX - offset.x) * SETTINGS.mouse.responsiveness;
+      const deltaY = (targetY - offset.y) * SETTINGS.mouse.responsiveness;
+      
+      uniforms.uOffset.value.set(
+        deltaX * SETTINGS.deformation.strength,
+        -deltaY * SETTINGS.deformation.strength
+      );
 
-      uniforms.uOffset.value.set(deltaX * SETTINGS.deformation.strength, -deltaY * SETTINGS.deformation.strength)
+      // Smoother RGB split on mouse movement
+      const rgbStrength = 0.0008; // Reduced for subtlety
+      uniforms.uRGBOffset.value.set(
+        deltaX * rgbStrength,
+        deltaY * rgbStrength
+      );
 
-      const rgbStrength = 0.0008
-      uniforms.uRGBOffset.value.set(deltaX * rgbStrength, deltaY * rgbStrength)
-
-      const rect = wrapper.getBoundingClientRect()
-      const wrapperCenterX = rect.width / 2
-      const wrapperCenterY = rect.height / 2
-
-      const screenCenterX = window.innerWidth / 2
-      const screenCenterY = window.innerHeight / 2
-
-      const worldX = lerp(mesh.position.x, rect.left + offset.x - screenCenterX, 0.1)
-      const worldY = lerp(mesh.position.y, screenCenterY - (rect.top + offset.y), 0.1)
-
-      mesh.position.set(worldX, worldY, 0)
+      // Smoother positioning - mesh follows mouse within wrapper bounds
+      const rect = wrapper.getBoundingClientRect();
+      const wrapperCenterX = rect.width / 2;
+      const wrapperCenterY = rect.height / 2;
+      
+      // Convert wrapper coordinates to world coordinates with smooth following
+      const worldX = lerp(mesh.position.x, offset.x - wrapperCenterX, 0.1);
+      const worldY = lerp(mesh.position.y, wrapperCenterY - offset.y, 0.1);
+      
+      mesh.position.set(worldX, worldY, 0);
     }
 
+    // Enhanced transition handling
     if (transitioning && uniforms.uMixFactor.value < 1.0) {
-      uniforms.uMixFactor.value += SETTINGS.transition.speed
+      uniforms.uMixFactor.value += SETTINGS.transition.speed;
       if (uniforms.uMixFactor.value >= 1.0) {
-        transitioning = false
-        uniforms.uPrevTexture.value = null
+        transitioning = false;
+        uniforms.uPrevTexture.value = null;
       }
     }
 
+    // Enhanced fade out
     if (fadingOut && uniforms.uAlpha.value > 0.0) {
-      uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed
+      uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
       if (uniforms.uAlpha.value <= 0.0) {
-        uniforms.uAlpha.value = 0.0
-        fadingOut = false
-        currentIndex = -1
+        uniforms.uAlpha.value = 0.0;
+        fadingOut = false;
+        currentIndex = -1;
       }
     }
   }
 
+  // Cleanup function
   const cleanup = () => {
-    wrapper.removeEventListener("mousemove", update)
-    geometry.dispose()
-    material.dispose()
+    window.removeEventListener("resize", resizeHandler);
+    scene.clear();
+    geometry.dispose();
+    material.dispose();
+    textures.forEach(tex => tex.dispose());
+  };
+
+  return { scene, camera, update, cleanup, type: 'list-hover' };
+}
+
+/*
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+Bulge Effect for Grid Tab
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+*/
+function initBulgeEffects() {
+  console.log("initBulgeEffects called");
+
+  // Only run if we're on the grid tab
+  if (window.WebGLEffects.getCurrentTab() !== 'Tab 1') {
+    console.log('Skipping bulge effect - wrong tab');
+    return;
   }
 
-  return {
-    scene,
-    camera,
-    update,
-    cleanup,
+  const cards = Array.from(
+    document.querySelectorAll('[data-w-tab="Tab 1"] [webgl-anime="image-hover"]')
+  );
+  console.log("Cards found:", cards.length);
+
+  const loader = new THREE.TextureLoader();
+  const planes = [];
+
+  // Shader code
+  const vertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+    }
+  `;
+
+  const fragmentShader = `
+    precision highp float;
+    uniform sampler2D uTexture;
+    uniform vec2 uMouse;
+    uniform float uHover;
+    varying vec2 vUv;
+    void main() {
+      vec2 uv = vUv;
+      vec2 diff = uv - uMouse;
+      float dist = length(diff);
+      uv -= diff * 0.25 * uHover * exp(-3.0*dist*dist);
+      vec4 color = texture2D(uTexture, uv);
+      float glow = exp(-3.0*dist*dist) * 0.25;
+      color.rgb += glow;
+      gl_FragColor = color;
+    }
+  `;
+
+  cards.forEach((card, i) => {
+    console.log("Processing card:", i);
+
+    // remove old canvases if they exist
+    card.querySelectorAll(".work-canvas").forEach(el => {
+      console.log("Removed old canvas from card", i);
+      el.remove();
+    });
+
+    const img = card.querySelector("img");
+    if (!img) {
+      console.warn("No image found in card", i);
+      return;
+    }
+
+    const texture = loader.load(img.src, () => {
+      console.log("Texture loaded for card", i);
+      img.style.opacity = "0"; // hide original image once texture is ready
+    });
+
+    const width = card.offsetWidth;
+    const height = card.offsetHeight;
+
+    // Scene, camera, renderer per card
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(
+      -width / 2,
+      width / 2,
+      height / 2,
+      -height / 2,
+      0.1,
+      10
+    );
+    camera.position.z = 1;
+
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+    });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    // Add class
+    renderer.domElement.classList.add("work-canvas");
+    card.appendChild(renderer.domElement);
+    console.log("Added canvas to card", i);
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTexture: { value: texture },
+        uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+        uHover: { value: 0 },
+      },
+      vertexShader,
+      fragmentShader,
+    });
+
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.scale.set(width, height, 1);
+    scene.add(mesh);
+
+    let animationId;
+
+    const cardData = { 
+      card, 
+      renderer, 
+      scene, 
+      camera, 
+      material, 
+      geometry, 
+      texture,
+      animationId: null
+    };
+    
+    planes.push(cardData);
+
+    // Mouse move
+    card.addEventListener("mousemove", (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = 1 - (e.clientY - rect.top) / rect.height;
+      material.uniforms.uMouse.value.set(x, y);
+      material.uniforms.uHover.value +=
+        (1.0 - material.uniforms.uHover.value) * 0.2;
+    });
+
+    card.addEventListener("mouseleave", () => {
+      console.log("Mouse left card", i);
+    });
+
+    function animate() {
+      // Only animate if we're still on the grid tab
+      if (window.WebGLEffects.getCurrentTab() === 'Tab 1') {
+        cardData.animationId = requestAnimationFrame(animate);
+        material.uniforms.uHover.value *= 0.97;
+        renderer.render(scene, camera);
+      }
+    }
+    animate();
+
+    // Responsive
+    const resizeHandler = () => {
+      if (window.WebGLEffects.getCurrentTab() !== 'Tab 1') return;
+      
+      const width = card.offsetWidth;
+      const height = card.offsetHeight;
+      renderer.setSize(width, height);
+      camera.left = -width / 2;
+      camera.right = width / 2;
+      camera.top = height / 2;
+      camera.bottom = -height / 2;
+      camera.updateProjectionMatrix();
+      mesh.scale.set(width, height, 1);
+      console.log("Resized card", i);
+    };
+    
+    window.addEventListener("resize", resizeHandler);
+    
+    // Store resize handler for cleanup
+    cardData.resizeHandler = resizeHandler;
+  });
+
+  // Store planes globally for cleanup
+  window.currentBulgePlanes = planes;
+}
+
+// Cleanup function for bulge effects
+function cleanupBulgeEffects() {
+  if (window.currentBulgePlanes) {
+    window.currentBulgePlanes.forEach((plane, i) => {
+      console.log("Cleaning up plane", i);
+      
+      // Cancel animation
+      if (plane.animationId) {
+        cancelAnimationFrame(plane.animationId);
+      }
+      
+      // Remove event listeners
+      if (plane.resizeHandler) {
+        window.removeEventListener("resize", plane.resizeHandler);
+      }
+      
+      // Dispose resources
+      if (plane.geometry) plane.geometry.dispose();
+      if (plane.material) plane.material.dispose();
+      if (plane.texture) plane.texture.dispose();
+      if (plane.renderer) plane.renderer.dispose();
+      
+      // Remove canvas
+      const canvas = plane.card.querySelector('.work-canvas');
+      if (canvas) canvas.remove();
+      
+      // Show original image
+      const img = plane.card.querySelector('img');
+      if (img) img.style.opacity = '1';
+    });
+    
+    window.currentBulgePlanes = [];
   }
 }
 
-function lerp(start, end, amount) {
-  return (1 - amount) * start + amount * end
+/*
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+Initialize on load
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+*/
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(() => {
+    console.log("DOMContentLoaded init");
+    
+    // Initialize effects based on current tab
+    const currentTab = window.WebGLEffects.getCurrentTab();
+    console.log("Current tab on load:", currentTab);
+    
+    window.WebGLEffects.initTabEffects(currentTab);
+    
+    // Fallback: If no effects were initialized, try again with Tab 2
+    setTimeout(() => {
+      if (window.WebGLEffects.renderer) {
+        const hasEffects = window.WebGLEffects.renderer.info?.render?.triangles > 0;
+        if (!hasEffects) {
+          console.log('No effects detected, forcing Tab 2 initialization');
+          window.WebGLEffects.initTabEffects('Tab 2');
+        }
+      }
+    }, 500);
+  }, 100);
+});
+
+if (document.readyState !== "loading") {
+  setTimeout(() => {
+    console.log("Page already loaded, init immediately");
+    
+    // Initialize effects based on current tab
+    const currentTab = window.WebGLEffects.getCurrentTab();
+    console.log("Current tab on load:", currentTab);
+    
+    window.WebGLEffects.initTabEffects(currentTab);
+    
+    // Fallback: If no effects were initialized, try again with Tab 2
+    setTimeout(() => {
+      if (window.WebGLEffects.renderer) {
+        console.log('Checking if effects are running...');
+        // Force Tab 2 initialization if screen is still black
+        window.WebGLEffects.initTabEffects('Tab 2');
+      }
+    }, 500);
+  }, 100);
 }
