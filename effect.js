@@ -11,7 +11,6 @@ window.WebGLEffects = (() => {
   let currentTab = "Tab 1" // Default to grid view
   let animationId = null
   let scrollBlurEffect = null
-  let bulgeEffect = null
 
   function init() {
     // Shared renderer
@@ -39,15 +38,13 @@ window.WebGLEffects = (() => {
     // Initialize scroll blur effect
     scrollBlurEffect = initScrollBlurEffect()
 
-    bulgeEffect = initBulgeEffect()
-
     animate()
     window.addEventListener("resize", onResize)
 
     // Listen for tab changes
     initTabListener()
 
-    console.log("Global WebGL renderer initialized with scroll blur and bulge effects")
+    console.log("Global WebGL renderer initialized with scroll blur")
   }
 
   function onResize() {
@@ -56,31 +53,32 @@ window.WebGLEffects = (() => {
     camera.updateProjectionMatrix()
     scrollBlurEffect.cleanup()
     scrollBlurEffect = initScrollBlurEffect()
-    if (bulgeEffect) {
-      bulgeEffect.cleanup()
-      bulgeEffect = initBulgeEffect()
-    }
+  }
+
+  function initTabListener() {
+    // Placeholder for tab listener initialization
+    // This should be implemented based on the specific tab management system used
+    console.log("Tab listener initialized")
+  }
+
+  function addEffect(effect) {
+    effects.push(effect)
   }
 
   function switchTab(tab) {
     currentTab = tab
     console.log("Switched to tab:", tab)
+  }
 
-    effects.length = 0
-
-    if (tab === "Tab 2") {
-      setTimeout(() => {
-        const listEffect = HoverListEffect(renderer)
-        if (listEffect) {
-          addEffect(listEffect)
-        }
-      }, 100)
-    }
+  function initTabEffects() {
+    // Placeholder for initializing tab-specific effects
+    console.log("Tab-specific effects initialized")
   }
 
   function animate(time) {
     animationId = requestAnimationFrame(animate)
 
+    // Always render scroll blur effect (global background)
     if (scrollBlurEffect) {
       scrollBlurEffect.update(time)
       renderer.setRenderTarget(null)
@@ -88,12 +86,9 @@ window.WebGLEffects = (() => {
       renderer.render(scrollBlurEffect.scene, scrollBlurEffect.camera)
     }
 
-    if (currentTab === "Tab 1" && bulgeEffect) {
-      bulgeEffect.update(time)
-      renderer.render(bulgeEffect.scene, bulgeEffect.camera)
-    }
-
+    // Render tab-specific effects on top
     if (currentTab === "Tab 2") {
+      // Update and render list effects
       effects.forEach((e) => {
         if (e.update) e.update(time)
         if (e.scene && e.camera && e.type === "list-hover") {
@@ -103,21 +98,10 @@ window.WebGLEffects = (() => {
     }
   }
 
-  function addEffect(effect) {
-    effects.push(effect)
-  }
-
-  function initTabListener() {
-    console.log("Tab listener initialized")
-  }
-
-  function initTabEffects() {
-    console.log("Tab-specific effects initialized")
-  }
+  init()
 
   // Expose the renderer so effects can use it
   return {
-    init, // Added missing init method to the returned object
     addEffect,
     renderer,
     scene,
@@ -126,7 +110,6 @@ window.WebGLEffects = (() => {
     getCurrentTab: () => currentTab,
     initTabEffects,
     scrollBlurEffect: () => scrollBlurEffect,
-    bulgeEffect: () => bulgeEffect,
   }
 })()
 
@@ -233,7 +216,7 @@ function initScrollBlurEffect() {
     const maxScroll = Math.max(document.body.scrollHeight - window.innerHeight, 1)
 
     const newVelocity = scrolled - lastScroll
-    scrollVelocity = scrollVelocity * 0.8 + newVelocity * 0.2
+    scrollVelocity = scrollVelocity * 0.8 + newVelocity * 0.2 // Smooth velocity
 
     const targetProgress = Math.min(Math.max(scrolled / maxScroll, 0), 1)
     scrollProgress = scrollProgress * 0.9 + targetProgress * 0.1
@@ -458,124 +441,6 @@ function HoverListEffect(globalRenderer) {
   }
 }
 
-/*
-☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-RGB Split Bulge Effect for Tab 1 - NO LIGHT EFFECT
-☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-*/
-function initBulgeEffect() {
-  const scene = new THREE.Scene()
-  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
-
-  const vertexShader = `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `
-
-  const fragmentShader = `
-    uniform float uTime;
-    uniform vec2 uMouse;
-    uniform vec2 uResolution;
-    uniform float uStrength;
-    varying vec2 vUv;
-    
-    void main() {
-      vec2 st = vUv;
-      vec2 mouse = uMouse / uResolution;
-      
-      float dist = distance(st, mouse);
-      
-      float bulge = smoothstep(0.3, 0.0, dist) * uStrength;
-      
-      vec2 offset = normalize(st - mouse) * bulge * 0.02;
-      
-      float r = smoothstep(0.2, 0.0, distance(st + offset, mouse));
-      float g = smoothstep(0.2, 0.0, distance(st, mouse));
-      float b = smoothstep(0.2, 0.0, distance(st - offset, mouse));
-      
-      vec3 color = vec3(r * 0.8, g * 0.6, b * 1.0);
-      
-      float noise = fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
-      color += noise * 0.1;
-      
-      float alpha = (r + g + b) * 0.3 * sin(uTime * 2.0 + dist * 10.0) * 0.5 + 0.5;
-      alpha = clamp(alpha, 0.0, 0.8);
-      
-      gl_FragColor = vec4(color, alpha);
-    }
-  `
-
-  const uniforms = {
-    uTime: { value: 0 },
-    uMouse: { value: new THREE.Vector2(0, 0) },
-    uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-    uStrength: { value: 0.5 },
-  }
-
-  const geometry = new THREE.PlaneGeometry(2, 2)
-  const material = new THREE.ShaderMaterial({
-    uniforms,
-    vertexShader,
-    fragmentShader,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-  })
-
-  const mesh = new THREE.Mesh(geometry, material)
-  scene.add(mesh)
-
-  const handleMouseMove = (e) => {
-    if (window.WebGLEffects.getCurrentTab() !== "Tab 1") return
-
-    uniforms.uMouse.value.x = e.clientX
-    uniforms.uMouse.value.y = window.innerHeight - e.clientY
-  }
-
-  window.addEventListener("mousemove", handleMouseMove)
-
-  const update = (time) => {
-    uniforms.uTime.value = time * 0.001
-  }
-
-  const resize = () => {
-    uniforms.uResolution.value.set(window.innerWidth, window.innerHeight)
-  }
-  window.addEventListener("resize", resize)
-
-  const cleanup = () => {
-    window.removeEventListener("mousemove", handleMouseMove)
-    window.removeEventListener("resize", resize)
-    geometry.dispose()
-    material.dispose()
-  }
-
-  return {
-    scene,
-    camera,
-    update,
-    cleanup,
-  }
-}
-
 function lerp(start, end, amount) {
   return (1 - amount) * start + amount * end
-}
-
-// Initialize the WebGL effects when the page loads
-document.addEventListener("DOMContentLoaded", () => {
-  console.log("[v0] Initializing WebGL Effects...")
-  window.WebGLEffects.init()
-})
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => {
-    console.log("[v0] DOM loaded - initializing WebGL Effects...")
-    window.WebGLEffects.init()
-  })
-} else {
-  console.log("[v0] DOM already loaded - initializing WebGL Effects immediately...")
-  window.WebGLEffects.init()
 }
