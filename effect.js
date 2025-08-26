@@ -141,38 +141,47 @@ function initScrollBlurEffect() {
       return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
     }
     
+    vec3 blur(vec2 uv, float amount) {
+      vec3 color = vec3(0.0);
+      float total = 0.0;
+      
+      for(float x = -4.0; x <= 4.0; x += 1.0) {
+        for(float y = -4.0; y <= 4.0; y += 1.0) {
+          vec2 offset = vec2(x, y) * amount * 0.01;
+          float weight = exp(-(x*x + y*y) * 0.1);
+          color += vec3(1.0) * weight;
+          total += weight;
+        }
+      }
+      
+      return color / total;
+    }
+    
     void main() {
       vec2 st = vUv;
       
-      // Create directional blur zones
       float blurZone;
       float edgeFade;
       
       if (uScrollDir > 0.0) {
-        // Scrolling down - blur appears at bottom
-        blurZone = smoothstep(0.3, 1.0, st.y);
-        edgeFade = smoothstep(0.0, 0.4, st.y);
+        blurZone = smoothstep(0.4, 1.0, st.y);
+        edgeFade = smoothstep(0.2, 0.8, st.y);
       } else {
-        // Scrolling up - blur appears at top  
-        blurZone = smoothstep(0.3, 1.0, 1.0 - st.y);
-        edgeFade = smoothstep(0.0, 0.4, 1.0 - st.y);
+        blurZone = smoothstep(0.4, 1.0, 1.0 - st.y);
+        edgeFade = smoothstep(0.2, 0.8, 1.0 - st.y);
       }
       
-      float n = noise(st * 8.0 + uTime * 0.3);
-      float blurAmount = blurZone * uScrollProgress;
+      float blurAmount = blurZone * uScrollProgress * 2.0;
+      vec3 blurredColor = blur(st, blurAmount);
       
-      // White blur color with subtle variations
-      vec3 whiteBase = vec3(0.95, 0.96, 0.98);
+      vec3 whiteBase = vec3(0.9, 0.92, 0.95);
       vec3 whiteHighlight = vec3(1.0, 1.0, 1.0);
       
-      vec3 finalColor = mix(whiteBase, whiteHighlight, n * 0.3);
+      float n = noise(st * 6.0 + uTime * 0.2);
+      vec3 finalColor = mix(whiteBase, whiteHighlight, n * 0.4) * blurredColor;
       
-      // Add subtle shimmer effect
-      float shimmer = sin(uTime * 3.0 + st.y * 15.0) * 0.05;
-      finalColor += shimmer * blurAmount;
-      
-      // Control opacity based on scroll progress and blur zone
-      float opacity = blurAmount * edgeFade * 0.8;
+      float opacity = blurAmount * edgeFade * 1.2;
+      opacity = clamp(opacity, 0.0, 0.9);
       
       gl_FragColor = vec4(finalColor, opacity);
     }
@@ -199,20 +208,24 @@ function initScrollBlurEffect() {
 
   let lastScroll = window.pageYOffset
   let scrollVelocity = 0
+  let smoothScrollDir = 1.0
+  let scrollProgress = 0
 
   const updateScroll = () => {
     const scrolled = window.pageYOffset
     const maxScroll = Math.max(document.body.scrollHeight - window.innerHeight, 1)
 
-    // Calculate scroll velocity for smoother direction detection
-    scrollVelocity = scrolled - lastScroll
+    const newVelocity = scrolled - lastScroll
+    scrollVelocity = scrollVelocity * 0.8 + newVelocity * 0.2 // Smooth velocity
 
-    // Update scroll progress (0 to 1)
-    uniforms.uScrollProgress.value = Math.min(Math.max(scrolled / maxScroll, 0), 1)
+    const targetProgress = Math.min(Math.max(scrolled / maxScroll, 0), 1)
+    scrollProgress = scrollProgress * 0.9 + targetProgress * 0.1
+    uniforms.uScrollProgress.value = scrollProgress
 
-    // Smooth direction detection with velocity threshold
-    if (Math.abs(scrollVelocity) > 1) {
-      uniforms.uScrollDir.value = scrollVelocity > 0 ? 1.0 : -1.0
+    if (Math.abs(scrollVelocity) > 0.5) {
+      const targetDir = scrollVelocity > 0 ? 1.0 : -1.0
+      smoothScrollDir = smoothScrollDir * 0.85 + targetDir * 0.15
+      uniforms.uScrollDir.value = smoothScrollDir > 0 ? 1.0 : -1.0
     }
 
     lastScroll = scrolled
@@ -250,13 +263,11 @@ Enhanced Hover List Effect Animation - FIXED POSITIONING
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
 */
 function HoverListEffect(globalRenderer) {
-  // Only initialize if we're on the list tab
   if (window.WebGLEffects.getCurrentTab() !== "Tab 2") {
     console.log("Skipping list effect - wrong tab")
     return null
   }
 
-  // Look for the actual tab content div that contains the list items
   const wrapper = document.querySelector("#tab-list-pane") || document.querySelector('[data-w-tab="Tab 2"]')
   if (!wrapper) {
     console.warn("HoverListEffect: No Tab 2 wrapper found")
@@ -265,7 +276,6 @@ function HoverListEffect(globalRenderer) {
 
   console.log("Initializing Enhanced HoverListEffect for Tab 2", wrapper)
 
-  // Enhanced settings for smoother following
   const SETTINGS = {
     deformation: {
       strength: 0.00055,
@@ -300,7 +310,6 @@ function HoverListEffect(globalRenderer) {
   let transitioning = false,
     fadingOut = false
 
-  // CAMERA - Fixed for viewport
   const camera = new THREE.PerspectiveCamera(
     (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI,
     window.innerWidth / window.innerHeight,
@@ -362,13 +371,10 @@ function HoverListEffect(globalRenderer) {
   scene.add(mesh)
 
   wrapper.addEventListener("mousemove", (e) => {
-    // Only track mouse when we're on the list tab and have an active effect
     if (window.WebGLEffects.getCurrentTab() !== "Tab 2" || currentIndex === -1) return
 
-    // Get wrapper position relative to viewport, accounting for scroll
     const rect = wrapper.getBoundingClientRect()
 
-    // Calculate mouse position relative to wrapper, compensating for scroll
     targetX = e.clientX - rect.left
     targetY = e.clientY - rect.top
 
@@ -376,21 +382,17 @@ function HoverListEffect(globalRenderer) {
   })
 
   function update() {
-    // Update time for ripple effect
     uniforms.uTime.value = Date.now() * 0.001
 
     if (uniforms.uAlpha.value > 0 && currentIndex >= 0) {
-      // Much smoother lerping with enhanced responsiveness
       offset.x = lerp(offset.x, targetX, SETTINGS.mouse.lerpFactor)
       offset.y = lerp(offset.y, targetY, SETTINGS.mouse.lerpFactor)
 
-      // Smoother deformation with better responsiveness
       const deltaX = (targetX - offset.x) * SETTINGS.mouse.responsiveness
       const deltaY = (targetY - offset.y) * SETTINGS.mouse.responsiveness
 
       uniforms.uOffset.value.set(deltaX * SETTINGS.deformation.strength, -deltaY * SETTINGS.deformation.strength)
 
-      // Smoother RGB split on mouse movement
       const rgbStrength = 0.0008
       uniforms.uRGBOffset.value.set(deltaX * rgbStrength, deltaY * rgbStrength)
 
@@ -398,19 +400,15 @@ function HoverListEffect(globalRenderer) {
       const wrapperCenterX = rect.width / 2
       const wrapperCenterY = rect.height / 2
 
-      // Convert wrapper coordinates to world coordinates with proper centering
-      // Account for the wrapper's position on screen
       const screenCenterX = window.innerWidth / 2
       const screenCenterY = window.innerHeight / 2
 
-      // Calculate world position relative to screen center
       const worldX = lerp(mesh.position.x, rect.left + offset.x - screenCenterX, 0.1)
       const worldY = lerp(mesh.position.y, screenCenterY - (rect.top + offset.y), 0.1)
 
       mesh.position.set(worldX, worldY, 0)
     }
 
-    // Enhanced transition handling
     if (transitioning && uniforms.uMixFactor.value < 1.0) {
       uniforms.uMixFactor.value += SETTINGS.transition.speed
       if (uniforms.uMixFactor.value >= 1.0) {
@@ -419,7 +417,6 @@ function HoverListEffect(globalRenderer) {
       }
     }
 
-    // Enhanced fade out
     if (fadingOut && uniforms.uAlpha.value > 0.0) {
       uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed
       if (uniforms.uAlpha.value <= 0.0) {
@@ -447,5 +444,3 @@ function HoverListEffect(globalRenderer) {
 function lerp(start, end, amount) {
   return (1 - amount) * start + amount * end
 }
-
-// ... existing bulge effects and initialization code ...
