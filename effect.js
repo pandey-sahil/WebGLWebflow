@@ -562,3 +562,19 @@ function initBulgeEffect() {
 function lerp(start, end, amount) {
   return (1 - amount) * start + amount * end
 }
+
+// Initialize the WebGL effects when the page loads
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("[v0] Initializing WebGL Effects...")
+  window.WebGLEffects.init()
+})
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    console.log("[v0] DOM loaded - initializing WebGL Effects...")
+    window.WebGLEffects.init()
+  })
+} else {
+  console.log("[v0] DOM already loaded - initializing WebGL Effects immediately...")
+  window.WebGLEffects.init()
+}
