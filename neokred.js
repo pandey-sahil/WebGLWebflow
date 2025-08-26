@@ -48,7 +48,7 @@ loader.load(
     model.position.sub(center);
 
     // ✅ Reset rotation so it's perfectly front-facing
-    model.rotation.set(2, 2, 0);
+    model.rotation.set(5, 2, 0);
 
     // Material cleanup
     model.traverse((child) => {
@@ -64,8 +64,8 @@ loader.load(
     });
 
     // ✅ Initial camera (dead center, no tilt)
-    camera.position.set(0, 2.2, 2);
-    camera.lookAt(0, 0, 0);
+    camera.position.set(2, 2.2, 2);
+    camera.lookAt(2, 0, 0);
 
     // -----------------
     // GSAP + ScrollTrigger
