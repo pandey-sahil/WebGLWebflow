@@ -117,6 +117,7 @@ window.WebGLEffects = (() => {
 
   // Expose the renderer so effects can use it
   return {
+    init, // Added missing init method to the returned object
     addEffect,
     renderer,
     scene,
