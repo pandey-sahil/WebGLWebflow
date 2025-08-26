@@ -1,33 +1,14 @@
-import * as THREE from 'three';
-
-/*
-=====================================================
-   GLOBAL EFFECT MANAGER
-=====================================================
-*/
+// ========== Global WebGL Manager ==========
 window.WebGLEffects = (function () {
   const effects = [];
-  let renderer, scene, camera;
+  let renderer;
 
   function init() {
-    // Shared renderer
-     renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-     renderer.setPixelRatio(window.devicePixelRatio);
-     renderer.setSize(window.innerWidth, window.innerHeight);
-     
-     // add class before appending
-     renderer.domElement.classList.add("global-webgl-canvas");
-     document.body.appendChild(renderer.domElement);
-
-    // Shared scene + camera (can be overridden per effect)
-    scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(
-      45,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      100
-    );
-    camera.position.z = 5;
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.domElement.classList.add("global-webgl-canvas");
+    document.body.appendChild(renderer.domElement);
 
     animate();
     window.addEventListener("resize", onResize);
@@ -35,534 +16,115 @@ window.WebGLEffects = (function () {
 
   function onResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+    effects.forEach(e => {
+      if (e.camera && e.camera.isPerspectiveCamera) {
+        e.camera.aspect = window.innerWidth / window.innerHeight;
+        e.camera.updateProjectionMatrix();
+      }
+    });
   }
 
-  function addEffect(effectFn) {
-    const effect = effectFn(renderer, scene, camera);
-    if (!effect) return; // gracefully skip if it didn't init
-    effects.push(effect);
+  function addEffect(effectFn, tabSelector) {
+    const effect = effectFn();
+    if (!effect) return;
+    effects.push({ ...effect, tabSelector });
+  }
+
+  function getActiveEffect() {
+    let active = null;
+    effects.forEach(e => {
+      const pane = document.querySelector(e.tabSelector);
+      if (pane && pane.classList.contains("w--tab-active")) {
+        active = e;
+      }
+    });
+    return active;
   }
 
   function animate(time) {
     requestAnimationFrame(animate);
-    
-    // Clear the main canvas
-    renderer.setRenderTarget(null);
     renderer.clear();
-    
-    // Update and render each effect
-    effects.forEach((e) => {
-      if (e.update) e.update(time);
-      if (e.scene && e.camera) {
-        renderer.render(e.scene, e.camera);
-      }
-    });
+
+    const activeEffect = getActiveEffect();
+    if (activeEffect) {
+      if (activeEffect.update) activeEffect.update(time);
+      renderer.render(activeEffect.scene, activeEffect.camera);
+    }
   }
 
   init();
-
-  // Expose the renderer so effects can use it
-  return { addEffect, renderer, scene, camera };
+  return { addEffect };
 })();
-
-/*
-☰☰☰☰☰☰☰☰☰☰☰☰☰
-Grid Hover Animation
-☰☰☰☰☰☰☰☰☰☰☰☰☰
-
-function GridAnimeEffect(globalRenderer) {
-  const image = document.querySelector("img[webgl-grid-anime]");
-  if (!image) {
-    console.warn("GridAnimeEffect: No image found with attribute 'webgl-grid-anime'");
-    return null;
-  }
-  
-  const wrapper = image.closest(".webgl-wrapper");
-  if (!wrapper) {
-    console.warn("GridAnimeEffect: No wrapper found with class 'webgl-wrapper'");
-    return null;
-  }
-  
-  const imgRatio = image.naturalWidth / image.naturalHeight || 1;
-
+function initBludge() {
   const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(-imgRatio, imgRatio, 1, -1, 0.1, 10);
-  camera.position.z = 1;
+  const camera = new THREE.PerspectiveCamera(
+    45,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    100
+  );
+  camera.position.z = 2;
 
-  const texture = new THREE.TextureLoader().load(image.src);
-  const uniforms = {
-    u_texture: { value: texture },
-    u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
-    u_prevMouse: { value: new THREE.Vector2(0.5, 0.5) },
-    u_aberrationIntensity: { value: 0 },
-  };
-
+  const geometry = new THREE.PlaneGeometry(1, 1, 32, 32);
   const material = new THREE.ShaderMaterial({
-    uniforms,
+    uniforms: {
+      uTime: { value: 0 }
+    },
     vertexShader: `
+      uniform float uTime;
       varying vec2 vUv;
-      void main() { vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }
+      void main() {
+        vUv = uv;
+        vec3 pos = position;
+        pos.z += sin(pos.x * 10.0 + uTime) * 0.1;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+      }
     `,
     fragmentShader: `
       varying vec2 vUv;
-      uniform sampler2D u_texture;
       void main() {
-        gl_FragColor = texture2D(u_texture, vUv);
+        gl_FragColor = vec4(vUv, 1.0, 1.0);
       }
     `
   });
 
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2 * imgRatio, 2), material);
+  const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
 
-  let mouse = { x: 0.5, y: 0.5 };
-  let target = { x: 0.5, y: 0.5 };
-  let prev = { x: 0.5, y: 0.5 };
-  let intensity = 0;
-
-  wrapper.addEventListener("mousemove", (e) => {
-    const rect = wrapper.getBoundingClientRect();
-    prev = { ...target };
-    target.x = (e.clientX - rect.left) / rect.width;
-    target.y = (e.clientY - rect.top) / rect.height;
-    intensity = 1;
-  });
-
-  function update() {
-    mouse.x += (target.x - mouse.x) * 0.08;
-    mouse.y += (target.y - mouse.y) * 0.08;
-    uniforms.u_mouse.value.set(mouse.x, 1.0 - mouse.y);
-    uniforms.u_prevMouse.value.set(prev.x, 1.0 - prev.y);
-    uniforms.u_aberrationIntensity.value = intensity;
-    intensity = Math.max(0, intensity - 0.05);
+  function update(time) {
+    material.uniforms.uTime.value = time * 0.001;
   }
 
   return { scene, camera, update };
-}*/ 
-
-
-/*
-☰☰☰☰☰☰☰☰☰☰☰☰☰
-Hover List Effect Animation
-☰☰☰☰☰☰☰☰☰☰☰☰☰
-*/ 
+}
 function HoverListEffect() {
-  const geometry = new THREE.PlaneGeometry(1, 1, 32, 32);
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      uTexture: { value: new THREE.Texture() }, // default blank texture
-      uAlpha: { value: 0.0 },
-      uTime: { value: 0.0 },
-      uHover: { value: new THREE.Vector2(0, 0) },
-      uHoverStrength: { value: 0.0 },
-      uRipple: { value: new THREE.Vector2(0, 0) },
-      uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      uniform float uTime;
-      uniform vec2 uHover;
-      uniform float uHoverStrength;
-      void main() {
-        vUv = uv;
-        vec3 newPosition = position;
-        float dist = distance(uv, uHover);
-        newPosition.z += sin(dist * 10.0 - uTime * 5.0) * uHoverStrength * 0.2;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
-      }
-    `,
-    fragmentShader: `
-      varying vec2 vUv;
-      uniform sampler2D uTexture;
-      uniform float uAlpha;
-      void main() {
-        vec4 color = texture2D(uTexture, vUv);
-        if (color.a < 0.01) discard; // prevents black fill when no texture
-        gl_FragColor = vec4(color.rgb, color.a * uAlpha);
-      }
-    `,
-    transparent: true,
-  });
-
-  const mesh = new THREE.Mesh(geometry, material);
   const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(
-    window.innerWidth / -2,
-    window.innerWidth / 2,
-    window.innerHeight / 2,
-    window.innerHeight / -2,
-    1,
-    1000
+  const camera = new THREE.PerspectiveCamera(
+    45,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    100
   );
   camera.position.z = 2;
+
+  const geometry = new THREE.PlaneGeometry(1, 1, 32, 32);
+  const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
 
-  let currentIndex = -1;
-  const links = document.querySelectorAll('[webgl-anime="list-item"]');
-  let mouse = new THREE.Vector2(0, 0);
-
-  // Track mouse globally
-  document.addEventListener("mousemove", (event) => {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-  });
-
-  // Hover logic
-  links.forEach((link, index) => {
-    const img = link.querySelector('[webgl-anime="image-src"]');
-    if (!img) return;
-
-    const texture = new THREE.TextureLoader().load(img.src, () => {
-      texture.minFilter = THREE.LinearFilter;
-      texture.needsUpdate = true;
-    });
-
-    link.addEventListener("mouseenter", () => {
-      material.uniforms.uTexture.value = texture;
-      currentIndex = index;
-      gsap.to(material.uniforms.uAlpha, { value: 1.0, duration: 0.3 });
-    });
-
-    link.addEventListener("mouseleave", () => {
-      gsap.to(material.uniforms.uAlpha, { value: 0.0, duration: 0.3 });
-      currentIndex = -1;
-    });
-  });
-
-  function update() {
-    material.uniforms.uTime.value = Date.now() * 0.001;
-
-    if (currentIndex >= 0 && links[currentIndex]) {
-      const img = links[currentIndex].querySelector('[webgl-anime="image-src"]');
-      if (img) {
-        const rect = img.getBoundingClientRect();
-        const imgRatio = img.naturalWidth / img.naturalHeight;
-        const containerRatio = rect.width / rect.height;
-
-        let meshWidth, meshHeight;
-        if (containerRatio > imgRatio) {
-          meshWidth = rect.width;
-          meshHeight = rect.width / imgRatio;
-        } else {
-          meshHeight = rect.height;
-          meshWidth = rect.height * imgRatio;
-        }
-
-        mesh.scale.set(meshWidth, meshHeight, 1);
-
-        const viewportCenterX = window.innerWidth / 2;
-        const viewportCenterY = window.innerHeight / 2;
-        const imageCenterX = rect.left + rect.width / 2;
-        const imageCenterY = rect.top + rect.height / 2;
-
-        const offsetX = imageCenterX - viewportCenterX;
-        const offsetY = viewportCenterY - imageCenterY;
-
-        mesh.position.set(offsetX, offsetY, 0);
-      }
-    }
-
-    // Smooth ripple based on mouse
-    gsap.to(material.uniforms.uHover.value, {
-      x: (mouse.x + 1) / 2,
-      y: (mouse.y + 1) / 2,
-      duration: 0.3,
-    });
+  function update(time) {
+    mesh.rotation.y = Math.sin(time * 0.001) * 0.5;
   }
 
-  // Return in your format
   return { scene, camera, update };
 }
 
 
 
-/*
-☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-Buldge Effect
-☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-
-function CardHoverEffect(renderer) {
-  const wrappers = Array.from(document.querySelectorAll('[webgl-anime="image-hover"]'));
-  console.log("CardHoverEffect: Found wrappers", wrappers.length);
-
-  const loader = new THREE.TextureLoader();
-  const planes = [];
-
-  const vertexShader = `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-    }
-  `;
-
-  const fragmentShader = `
-    precision highp float;
-    uniform sampler2D uTexture;
-    uniform vec2 uMouse;
-    uniform float uHover;
-    varying vec2 vUv;
-    void main() {
-      vec2 uv = vUv;
-      vec2 diff = uv - uMouse;
-      float dist = length(diff);
-      uv -= diff * 0.25 * uHover * exp(-3.0*dist*dist);
-      vec4 color = texture2D(uTexture, uv);
-      float glow = exp(-3.0*dist*dist) * 0.25;
-      color.rgb += glow;
-      gl_FragColor = color;
-    }
-  `;
-
-  // Init planes for each wrapper
-  wrappers.forEach((wrapper, idx) => {
-    const img = wrapper.querySelector('img');
-    if (!img) {
-      console.warn("CardHoverEffect: No img found in wrapper", idx);
-      return;
-    }
-
-    console.log("CardHoverEffect: Loading image for wrapper", idx, img.src);
-    const texture = loader.load(img.src);
-
-    const width = wrapper.offsetWidth;
-    const height = wrapper.offsetHeight;
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
-    camera.position.z = 1;
-
-    const geometry = new THREE.PlaneGeometry(1, 1);
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        uTexture: { value: texture },
-        uMouse: { value: new THREE.Vector2(-1, -1) },
-        uHover: { value: 0 }
-      },
-      vertexShader,
-      fragmentShader
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    scene.add(mesh);
-
-    planes.push({ wrapper, scene, camera, mesh, material });
-
-    wrapper.addEventListener('mousemove', e => {
-      const rect = wrapper.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = 1 - (e.clientY - rect.top) / rect.height;
-      material.uniforms.uMouse.value.set(x, y);
-      material.uniforms.uHover.value += (1.0 - material.uniforms.uHover.value) * 0.1;
-      // console.log(`Wrapper ${idx} mousemove: x=${x} y=${y} hover=${material.uniforms.uHover.value}`);
-    });
-
-    wrapper.addEventListener('mouseleave', () => {
-      // decay handled in update
-      // console.log("Wrapper", idx, "mouseleave");
-    });
-  });
-
-  // Update function called per frame
- 
-  // Update function for CardHoverEffect - replace your existing update function
-return {
-  update: () => {
-    planes.forEach((p, idx) => {
-      const rect = p.wrapper.getBoundingClientRect();
-
-      // FIXED: Convert screen coordinates to NDC properly
-      const viewportCenterX = window.innerWidth / 2;
-      const viewportCenterY = window.innerHeight / 2;
-      
-      // Center of wrapper in screen coordinates
-      const wrapperCenterX = rect.left + rect.width / 2;
-      const wrapperCenterY = rect.top + rect.height / 2;
-      
-      // Convert to normalized device coordinates (-1 to 1)
-      const ndcX = (wrapperCenterX - viewportCenterX) / viewportCenterX;
-      const ndcY = (viewportCenterY - wrapperCenterY) / viewportCenterY;
-
-      // Scale relative to viewport
-      const scaleX = (rect.width / window.innerWidth) * 2;
-      const scaleY = (rect.height / window.innerHeight) * 2;
-
-      p.mesh.position.set(ndcX, ndcY, 0);
-      p.mesh.scale.set(scaleX, scaleY, 1);
-
-      // Hover decay
-      p.material.uniforms.uHover.value *= 0.9;
-
-      // Render each card's scene
-      renderer.render(p.scene, p.camera);
-    });
-  }
-};
-}
-*/ 
-function initBludge() {
-  console.log("initBludge called");
-
-  const cards = Array.from(
-    document.querySelectorAll('[webgl-anime="image-hover"]')
-  );
-  console.log("Cards found:", cards.length);
-
-  const loader = new THREE.TextureLoader();
-  const planes = [];
-
-  // Shader code
-  const vertexShader = `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-}
-`;
-
-  const fragmentShader = `
-precision highp float;
-uniform sampler2D uTexture;
-uniform vec2 uMouse;
-uniform float uHover;
-varying vec2 vUv;
-void main() {
-  vec2 uv = vUv;
-  vec2 diff = uv - uMouse;
-  float dist = length(diff);
-  uv -= diff * 0.25 * uHover * exp(-3.0*dist*dist);
-  vec4 color = texture2D(uTexture, uv);
-  float glow = exp(-3.0*dist*dist) * 0.25;
-  color.rgb += glow;
-  gl_FragColor = color;
-}
-`;
-
-  cards.forEach((card, i) => {
-    console.log("Processing card:", i);
-
-    // remove old canvases if they exist
-    card.querySelectorAll(".work-canvas").forEach(el => {
-      console.log("Removed old canvas from card", i);
-      el.remove();
-    });
-
-    const img = card.querySelector("img");
-    if (!img) {
-      console.warn("No image found in card", i);
-      return;
-    }
-
-    const texture = loader.load(img.src, () => {
-      console.log("Texture loaded for card", i);
-      img.style.opacity = "0"; // hide original image once texture is ready
-    });
-
-    const width = card.offsetWidth;
-    const height = card.offsetHeight;
-
-    // Scene, camera, renderer per card
-    const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(
-      -width / 2,
-      width / 2,
-      height / 2,
-      -height / 2,
-      0.1,
-      10
-    );
-    camera.position.z = 1;
-
-    const renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      antialias: true,
-    });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-
-    // Add class
-    renderer.domElement.classList.add("work-canvas");
-    card.appendChild(renderer.domElement);
-    console.log("Added canvas to card", i);
-
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        uTexture: { value: texture },
-        uMouse: { value: new THREE.Vector2(0.5, 0.5) }, // start centered
-        uHover: { value: 0 },
-      },
-      vertexShader,
-      fragmentShader,
-    });
-
-    // Plane at unit scale, then scale to card size
-    const geometry = new THREE.PlaneGeometry(1, 1);
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.scale.set(width, height, 1);
-    scene.add(mesh);
-
-    planes.push({ card, renderer, scene, camera, material });
-
-    // Mouse move
-    card.addEventListener("mousemove", (e) => {
-      const rect = card.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = 1 - (e.clientY - rect.top) / rect.height;
-      material.uniforms.uMouse.value.set(x, y);
-      material.uniforms.uHover.value +=
-        (1.0 - material.uniforms.uHover.value) * 0.2;
-    });
-
-    card.addEventListener("mouseleave", () => {
-      console.log("Mouse left card", i);
-    });
-
-    function animate() {
-      requestAnimationFrame(animate);
-      material.uniforms.uHover.value *= 0.97; // slower fade so it’s visible
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    // Responsive
-    window.addEventListener("resize", () => {
-      const width = card.offsetWidth;
-      const height = card.offsetHeight;
-      renderer.setSize(width, height);
-      camera.left = -width / 2;
-      camera.right = width / 2;
-      camera.top = height / 2;
-      camera.bottom = -height / 2;
-      camera.updateProjectionMatrix();
-      mesh.scale.set(width, height, 1);
-      console.log("Resized card", i);
-    });
-  });
-}
-
-/*
-☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-Attach effects on load
-☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-*/
-
 document.addEventListener("DOMContentLoaded", () => {
-  setTimeout(() => {
-    console.log("DOMContentLoaded init");
-    initBludge();
-    // window.WebGLEffects.addEffect(CardHoverEffect);
-    window.WebGLEffects.addEffect(HoverListEffect);
-  }, 100);
+  // Attach Bulge effect to bulge tab pane
+  WebGLEffects.addEffect(initBludge, "#tab-buldge-pane");
+
+  // Attach List hover effect to list tab pane
+  WebGLEffects.addEffect(HoverListEffect, "#tab-list-pane");
 });
-
-if (document.readyState !== "loading") {
-  setTimeout(() => {
-    console.log("Page already loaded, init immediately");
-    initBludge();
-    // window.WebGLEffects.addEffect(CardHoverEffect);
-    window.WebGLEffects.addEffect(HoverListEffect);
-  }, 100);
-}
-
