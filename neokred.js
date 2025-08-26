@@ -37,7 +37,7 @@ let savedRotationSection2 = 0;
 let savedRotationSection3 = 0;
 
 loader.load(
-  "https://web-gl-webflow.vercel.app/qr-machine.glb",
+  "https://web-gl-webflow.vercel.app/qr-machine2.glb",
   (gltf) => {
     model = gltf.scene;
     pivot.add(model);
