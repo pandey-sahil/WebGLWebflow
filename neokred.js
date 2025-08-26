@@ -48,7 +48,7 @@ loader.load(
     model.position.sub(center);
 
     // ✅ Reset rotation so it's perfectly front-facing
-    model.rotation.set(0, -0.15, 0);
+    model.rotation.set(0.15, -0.15, 0);
 
     // Material cleanup
     model.traverse((child) => {
