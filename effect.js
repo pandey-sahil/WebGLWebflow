@@ -201,9 +201,11 @@ Progressive Blur Scroll Effect for Section Reveals
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */
 function initScrollBlurEffect() {
+  if (!window.WebGLEffects) window.WebGLEffects = {};
+
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  
+
   const vertexShader = `
     varying vec2 vUv;
     void main() {
@@ -211,55 +213,51 @@ function initScrollBlurEffect() {
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `;
-  
+
   const fragmentShader = `
     uniform float uTime;
     uniform float uScrollProgress;
+    uniform float uScrollDir; // +1 = down, -1 = up
     uniform vec2 uResolution;
     varying vec2 vUv;
     
-    // Noise function
     float noise(vec2 st) {
       return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
     }
     
     void main() {
       vec2 st = vUv;
-      vec2 center = vec2(0.5, 0.5);
       
-      // Create radial gradient from center
-      float dist = distance(st, center);
+      // shift blur vertically based on scroll direction
+      st.y += uScrollDir * 0.2 * (1.0 - uScrollProgress); 
       
-      // Animated noise overlay
       float n = noise(st * 10.0 + uTime * 0.5);
-      
-      // Progressive blur based on scroll
       float blurAmount = smoothstep(0.0, 1.0, uScrollProgress);
+
+      // directional gradient (top vs bottom)
+      float grad = (uScrollDir > 0.0) ? st.y : (1.0 - st.y);
+
+      vec3 color1 = vec3(0.1, 0.1, 0.2);
+      vec3 color2 = vec3(0.05, 0.05, 0.1);
       
-      // Create revealing effect
-      float reveal = smoothstep(0.3, 0.7, 1.0 - blurAmount + n * 0.1);
-      
-      // Gradient colors
-      vec3 color1 = vec3(0.1, 0.1, 0.2); // Dark blue
-      vec3 color2 = vec3(0.05, 0.05, 0.1); // Darker
-      
-      vec3 finalColor = mix(color1, color2, dist);
-      finalColor *= (1.0 - blurAmount * 0.8); // Fade out on scroll
-      
-      // Add some shimmer
-      float shimmer = sin(uTime * 2.0 + dist * 10.0) * 0.1 * (1.0 - blurAmount);
+      vec3 finalColor = mix(color1, color2, grad);
+      finalColor *= (1.0 - blurAmount * 0.8);
+
+      float shimmer = sin(uTime * 2.0 + st.y * 10.0) * 0.1 * (1.0 - blurAmount);
       finalColor += shimmer;
-      
-      gl_FragColor = vec4(finalColor, reveal * 0.3); // Low opacity for background
+
+      float reveal = smoothstep(0.3, 0.7, 1.0 - blurAmount + n * 0.1);
+      gl_FragColor = vec4(finalColor, reveal * 0.4);
     }
   `;
-  
+
   const uniforms = {
     uTime: { value: 0 },
     uScrollProgress: { value: 0 },
+    uScrollDir: { value: 1.0 }, // start assuming scrolling down
     uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
   };
-  
+
   const geometry = new THREE.PlaneGeometry(2, 2);
   const material = new THREE.ShaderMaterial({
     uniforms,
@@ -268,45 +266,49 @@ function initScrollBlurEffect() {
     transparent: true,
     blending: THREE.NormalBlending
   });
-  
+
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
-  
-  // Scroll listener
-  let scrollProgress = 0;
+
+  let lastScroll = window.pageYOffset;
   const updateScroll = () => {
     const scrolled = window.pageYOffset;
     const maxScroll = document.body.scrollHeight - window.innerHeight;
-    scrollProgress = Math.min(scrolled / maxScroll, 1);
-    uniforms.uScrollProgress.value = scrollProgress;
+
+    // update scroll progress
+    uniforms.uScrollProgress.value = Math.min(scrolled / maxScroll, 1);
+
+    // detect direction
+    uniforms.uScrollDir.value = (scrolled > lastScroll) ? 1.0 : -1.0;
+    lastScroll = scrolled;
   };
-  
-  window.addEventListener('scroll', updateScroll, { passive: true });
-  
+
+  window.addEventListener("scroll", updateScroll, { passive: true });
+
   const update = (time) => {
     uniforms.uTime.value = time * 0.001;
   };
-  
+
   const resize = () => {
     uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
   };
-  
-  window.addEventListener('resize', resize);
-  
+  window.addEventListener("resize", resize);
+
   window.WebGLEffects.scrollBlurEffect = {
     scene,
     camera,
     update,
     cleanup: () => {
-      window.removeEventListener('scroll', updateScroll);
-      window.removeEventListener('resize', resize);
+      window.removeEventListener("scroll", updateScroll);
+      window.removeEventListener("resize", resize);
       geometry.dispose();
       material.dispose();
     }
   };
-  
+
   return window.WebGLEffects.scrollBlurEffect;
 }
+
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
