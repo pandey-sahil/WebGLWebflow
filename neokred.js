@@ -48,7 +48,7 @@ loader.load(
     model.position.sub(center);
 
     // ✅ Reset rotation so it's perfectly front-facing
-    model.rotation.set(0, -0.5, 0);
+    model.rotation.set(0, -0.4, 0);
 
     // Material cleanup
     model.traverse((child) => {
@@ -64,7 +64,7 @@ loader.load(
     });
 
     // ✅ Initial camera (dead center, no tilt)
-    camera.position.set(0, -0.15, 2.7);
+    camera.position.set(0, -0.15, 2);
     camera.lookAt(0, -0.15, 0);
 
     // -----------------
@@ -84,7 +84,7 @@ loader.load(
         gsap.to(camera.position, {
           x: 1,
           y: 1,
-          z: 2.7,
+          z: 2,
           onUpdate: () => camera.lookAt(0, 0, 0),
           overwrite: "auto"
         });
