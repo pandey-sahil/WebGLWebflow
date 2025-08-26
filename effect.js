@@ -19,9 +19,12 @@ window.WebGLEffects = (function () {
     
     // add class and styling before appending
     renderer.domElement.classList.add("global-webgl-canvas");
+    renderer.domElement.classList.add("list-webgl-canvas"); // Also add the CSS class from your styles
     renderer.domElement.style.position = "fixed";
     renderer.domElement.style.top = "0";
     renderer.domElement.style.left = "0";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
     renderer.domElement.style.zIndex = "999";
     renderer.domElement.style.pointerEvents = "none";
     document.body.appendChild(renderer.domElement);
@@ -192,13 +195,14 @@ function HoverListEffect(globalRenderer) {
     return null;
   }
 
-  const wrapper = document.querySelector('[data-w-tab="Tab 2"]');
+  // Look for the actual tab content div that contains the list items
+  const wrapper = document.querySelector('#tab-list-pane') || document.querySelector('[data-w-tab="Tab 2"]');
   if (!wrapper) {
     console.warn("HoverListEffect: No Tab 2 wrapper found");
     return null;
   }
 
-  console.log('Initializing HoverListEffect for Tab 2');
+  console.log('Initializing HoverListEffect for Tab 2', wrapper);
 
   const SETTINGS = {
     deformation: { strength: 0.00055, smoothing: 0.1 },
@@ -288,9 +292,16 @@ function HoverListEffect(globalRenderer) {
     uTime: { value: 0.0 }
   };
 
-  // LOAD textures
+  // LOAD textures - Updated selectors to match your HTML structure
   const links = [...wrapper.querySelectorAll('[webgl-anime="list-item"]')];
   console.log('Found list items:', links.length);
+  
+  if (links.length === 0) {
+    console.warn('No list items found, trying alternative selectors...');
+    // Fallback to find the portfolio items
+    const portfolioItems = [...wrapper.querySelectorAll('.portfolio20_item-link')];
+    console.log('Found portfolio items as fallback:', portfolioItems.length);
+  }
   
   const textures = links.map((link, idx) => {
     const img = link.querySelector('[webgl-anime="image-src"]');
@@ -299,13 +310,48 @@ function HoverListEffect(globalRenderer) {
       return null;
     }
     console.log('Loading texture for item', idx, img.src);
-    const tex = new THREE.TextureLoader().load(img.src);
+    const tex = new THREE.TextureLoader().load(img.src, 
+      () => console.log('Texture loaded successfully for item', idx),
+      undefined,
+      (err) => console.error('Failed to load texture for item', idx, err)
+    );
     tex.minFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
     return tex;
   }).filter(tex => tex !== null);
 
   console.log('Loaded textures:', textures.length);
+
+  // If no textures were found with the webgl-anime attributes, let's debug the HTML structure
+  if (textures.length === 0) {
+    console.log('No textures loaded. Debugging HTML structure...');
+    const allImages = wrapper.querySelectorAll('img');
+    console.log('All images in wrapper:', allImages.length);
+    allImages.forEach((img, idx) => {
+      console.log(`Image ${idx}:`, img.src, img.getAttribute('webgl-anime'));
+    });
+    const allListItems = wrapper.querySelectorAll('.portfolio20_item-link');
+    console.log('All portfolio items:', allListItems.length);
+    
+    // Create a fallback setup
+    console.warn('Setting up fallback texture loading...');
+    const fallbackTextures = [...allListItems].map((item, idx) => {
+      const img = item.querySelector('img');
+      if (!img) return null;
+      console.log('Loading fallback texture for item', idx, img.src);
+      const tex = new THREE.TextureLoader().load(img.src);
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      return tex;
+    }).filter(tex => tex !== null);
+    
+    if (fallbackTextures.length > 0) {
+      console.log('Using fallback textures:', fallbackTextures.length);
+      textures.push(...fallbackTextures);
+      // Also update links to use the fallback items
+      links.push(...allListItems);
+    }
+  }
 
   // MESH
   const geometry = new THREE.PlaneGeometry(1, 1, SETTINGS.mesh.segments, SETTINGS.mesh.segments);
@@ -320,7 +366,12 @@ function HoverListEffect(globalRenderer) {
 
   // LINK EVENTS
   links.forEach((link, idx) => {
-    if (!textures[idx]) return;
+    if (!textures[idx]) {
+      console.warn('No texture for link', idx);
+      return;
+    }
+    
+    console.log('Setting up events for link', idx, link);
     
     link.addEventListener("mouseenter", () => {
       console.log("Mouse entered link", idx);
@@ -337,6 +388,8 @@ function HoverListEffect(globalRenderer) {
       const img = link.querySelector('[webgl-anime="image-src"]');
       if (img) {
         const rect = img.getBoundingClientRect();
+        console.log('Image rect:', rect);
+        
         const imgRatio = img.naturalWidth / img.naturalHeight;
         const containerRatio = rect.width / rect.height;
 
@@ -363,18 +416,20 @@ function HoverListEffect(globalRenderer) {
         currentMeshPosition.set(offsetX, offsetY, 0);
         mesh.position.copy(currentMeshPosition);
         
-        console.log("Image positioned at:", offsetX, offsetY);
+        console.log("Image positioned at:", offsetX, offsetY, "Scale:", meshWidth, meshHeight);
       }
     });
 
     link.addEventListener("mouseleave", () => {
+      console.log("Mouse left link", idx);
       fadingOut = true;
     });
   });
 
-  // MOUSE MOVE - relative to wrapper
-  wrapper.addEventListener("mousemove", (e) => {
-    const rect = wrapper.getBoundingClientRect();
+  // MOUSE MOVE - relative to the list container
+  const listContainer = wrapper.querySelector('.portfolio20_list') || wrapper;
+  listContainer.addEventListener("mousemove", (e) => {
+    const rect = listContainer.getBoundingClientRect();
     targetX = e.clientX - rect.left;
     targetY = e.clientY - rect.top;
   });
