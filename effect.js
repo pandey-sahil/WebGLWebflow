@@ -115,6 +115,9 @@ window.WebGLEffects = (function () {
     // Remove list-specific effects from the global effects array
     for (let i = effects.length - 1; i >= 0; i--) {
       if (effects[i].type === 'list-hover') {
+        if (effects[i].cleanup) {
+          effects[i].cleanup();
+        }
         effects.splice(i, 1);
       }
     }
@@ -185,7 +188,7 @@ window.WebGLEffects = (function () {
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
-Hover List Effect Animation
+Enhanced Hover List Effect Animation
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
 */ 
 function HoverListEffect(globalRenderer) {
@@ -202,12 +205,28 @@ function HoverListEffect(globalRenderer) {
     return null;
   }
 
-  console.log('Initializing HoverListEffect for Tab 2', wrapper);
+  console.log('Initializing Enhanced HoverListEffect for Tab 2', wrapper);
 
+  // Enhanced settings from your old code
   const SETTINGS = {
-    deformation: { strength: 0.002, smoothing: 0.15 },
-    transition: { speed: 0.05, fadeInSpeed: 0.08, fadeOutSpeed: 0.06 },
-    mesh: { baseSize: 300, segments: 20 }
+    deformation: {
+      strength: 0.00055,  // Increased strength
+      smoothing: 0.1      // Better smoothing
+    },
+    transition: {
+      speed: 0.05,
+      fadeInSpeed: 0.08,
+      fadeOutSpeed: 0.06
+    },
+    effects: {
+      rgbSplit: 0.005,
+      rgbAnimation: 0.5,
+      rgbSpeed: 0.002
+    },
+    mesh: {
+      baseSize: 300,
+      segments: 20
+    }
   };
 
   const vertexShader = `
@@ -239,25 +258,30 @@ function HoverListEffect(globalRenderer) {
     varying vec2 vUv;
 
     void main(){
+        // Ripple effect for RGB offset
         vec2 center = vec2(0.5, 0.5);
         float distance = length(vUv - center);
         float ripple = sin(distance * 20.0 - uTime * 5.0) * 0.02;
-
+        
+        // RGB split with ripple effect
         float offsetStrength = 0.01;
         vec2 rippleOffset = uRGBOffset + vec2(ripple);
-
+        
+        // RGB split sampling with ripple
         vec4 texR = texture2D(uTexture, vUv + rippleOffset * offsetStrength);
         vec4 texG = texture2D(uTexture, vUv);
         vec4 texB = texture2D(uTexture, vUv - rippleOffset * offsetStrength);
-
+        
         vec3 newColor = vec3(texR.r, texG.g, texB.b);
 
+        // Previous texture with same RGB split ripple
         vec4 prevTexR = texture2D(uPrevTexture, vUv + rippleOffset * offsetStrength);
         vec4 prevTexG = texture2D(uPrevTexture, vUv);
         vec4 prevTexB = texture2D(uPrevTexture, vUv - rippleOffset * offsetStrength);
-
+        
         vec3 prevColor = vec3(prevTexR.r, prevTexG.g, prevTexB.b);
 
+        // crossfade between previous and new texture
         vec3 finalColor = mix(prevColor, newColor, uMixFactor);
 
         gl_FragColor = vec4(finalColor, uAlpha);
@@ -270,7 +294,6 @@ function HoverListEffect(globalRenderer) {
   let targetX = 0, targetY = 0;
   let currentIndex = -1;
   let transitioning = false, fadingOut = false;
-  let currentMeshPosition = new THREE.Vector3(0, 0, 0);
 
   // CAMERA - Fixed for viewport
   const camera = new THREE.PerspectiveCamera(
@@ -292,66 +315,56 @@ function HoverListEffect(globalRenderer) {
     uTime: { value: 0.0 }
   };
 
-  // LOAD textures - Updated selectors to match your HTML structure
-  const links = [...wrapper.querySelectorAll('[webgl-anime="list-item"]')];
-  console.log('Found list items:', links.length);
-  
-  if (links.length === 0) {
-    console.warn('No list items found, trying alternative selectors...');
-    // Fallback to find the portfolio items
-    const portfolioItems = [...wrapper.querySelectorAll('.portfolio20_item-link')];
-    console.log('Found portfolio items as fallback:', portfolioItems.length);
-  }
-  
-  const textures = links.map((link, idx) => {
-    const img = link.querySelector('[webgl-anime="image-src"]');
-    if (!img) {
-      console.warn('No image found for list item', idx);
-      return null;
-    }
-    console.log('Loading texture for item', idx, img.src);
-    const tex = new THREE.TextureLoader().load(img.src, 
-      () => console.log('Texture loaded successfully for item', idx),
-      undefined,
-      (err) => console.error('Failed to load texture for item', idx, err)
-    );
-    tex.minFilter = THREE.LinearFilter;
-    tex.generateMipmaps = false;
-    return tex;
-  }).filter(tex => tex !== null);
-
-  console.log('Loaded textures:', textures.length);
-
-  // If no textures were found with the webgl-anime attributes, let's debug the HTML structure
-  if (textures.length === 0) {
-    console.log('No textures loaded. Debugging HTML structure...');
-    const allImages = wrapper.querySelectorAll('img');
-    console.log('All images in wrapper:', allImages.length);
-    allImages.forEach((img, idx) => {
-      console.log(`Image ${idx}:`, img.src, img.getAttribute('webgl-anime'));
-    });
-    const allListItems = wrapper.querySelectorAll('.portfolio20_item-link');
-    console.log('All portfolio items:', allListItems.length);
+  // Enhanced texture loading with better fallbacks
+  function loadTextures() {
+    const links = [...wrapper.querySelectorAll('[webgl-anime="list-item"]')];
+    console.log('Found list items:', links.length);
     
-    // Create a fallback setup
-    console.warn('Setting up fallback texture loading...');
-    const fallbackTextures = [...allListItems].map((item, idx) => {
-      const img = item.querySelector('img');
-      if (!img) return null;
-      console.log('Loading fallback texture for item', idx, img.src);
-      const tex = new THREE.TextureLoader().load(img.src);
+    let textures = links.map((link, idx) => {
+      const img = link.querySelector('[webgl-anime="image-src"]');
+      if (!img) {
+        console.warn('No image found for list item', idx);
+        return null;
+      }
+      console.log('Loading texture for item', idx, img.src);
+      const tex = new THREE.TextureLoader().load(img.src, 
+        () => console.log('Texture loaded successfully for item', idx),
+        undefined,
+        (err) => console.error('Failed to load texture for item', idx, err)
+      );
       tex.minFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
       return tex;
     }).filter(tex => tex !== null);
-    
-    if (fallbackTextures.length > 0) {
-      console.log('Using fallback textures:', fallbackTextures.length);
-      textures.push(...fallbackTextures);
-      // Also update links to use the fallback items
-      links.push(...allListItems);
+
+    // Fallback if no textures found
+    if (textures.length === 0) {
+      console.log('No textures loaded with webgl-anime attributes, trying fallback...');
+      const fallbackLinks = [...wrapper.querySelectorAll('.portfolio20_item-link')];
+      console.log('Found fallback portfolio items:', fallbackLinks.length);
+      
+      textures = fallbackLinks.map((item, idx) => {
+        const img = item.querySelector('img');
+        if (!img) return null;
+        console.log('Loading fallback texture for item', idx, img.src);
+        const tex = new THREE.TextureLoader().load(img.src);
+        tex.minFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        return tex;
+      }).filter(tex => tex !== null);
+      
+      // Update links array if fallback worked
+      if (textures.length > 0) {
+        links.length = 0;
+        links.push(...fallbackLinks);
+      }
     }
+
+    return { links, textures };
   }
+
+  const { links, textures } = loadTextures();
+  console.log('Final loaded textures:', textures.length);
 
   // MESH
   const geometry = new THREE.PlaneGeometry(1, 1, SETTINGS.mesh.segments, SETTINGS.mesh.segments);
@@ -364,14 +377,19 @@ function HoverListEffect(globalRenderer) {
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
 
-  // LINK EVENTS
+  // Lerp function for smooth transitions
+  function lerp(start, end, t) {
+    return start * (1.0 - t) + end * t;
+  }
+
+  // ENHANCED LINK EVENTS
   links.forEach((link, idx) => {
     if (!textures[idx]) {
       console.warn('No texture for link', idx);
       return;
     }
     
-    console.log('Setting up events for link', idx, link);
+    console.log('Setting up enhanced events for link', idx, link);
     
     link.addEventListener("mouseenter", () => {
       console.log("Mouse entered link", idx);
@@ -385,38 +403,12 @@ function HoverListEffect(globalRenderer) {
       transitioning = true;
       fadingOut = false;
 
-      const img = link.querySelector('[webgl-anime="image-src"]');
+      // Enhanced image scaling based on aspect ratio
+      const img = link.querySelector('[webgl-anime="image-src"]') || link.querySelector('img');
       if (img) {
-        const rect = img.getBoundingClientRect();
-        console.log('Image rect:', rect);
-        
-        const imgRatio = img.naturalWidth / img.naturalHeight;
-        const containerRatio = rect.width / rect.height;
-
-        let meshWidth, meshHeight;
-        if (containerRatio > imgRatio) {
-          meshWidth = rect.width;
-          meshHeight = rect.width / imgRatio;
-        } else {
-          meshHeight = rect.height;
-          meshWidth = rect.height * imgRatio;
-        }
-
-        mesh.scale.set(meshWidth, meshHeight, 1);
-
-        const viewportCenterX = window.innerWidth / 2;
-        const viewportCenterY = window.innerHeight / 2;
-        
-        const imageCenterX = rect.left + rect.width / 2;
-        const imageCenterY = rect.top + rect.height / 2;
-        
-        const offsetX = imageCenterX - viewportCenterX;
-        const offsetY = viewportCenterY - imageCenterY;
-        
-        currentMeshPosition.set(offsetX, offsetY, 0);
-        mesh.position.copy(currentMeshPosition);
-        
-        console.log("Image positioned at:", offsetX, offsetY, "Scale:", meshWidth, meshHeight);
+        const aspect = img.naturalWidth / img.naturalHeight;
+        mesh.scale.set(SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize, 1);
+        console.log("Enhanced scaling applied:", SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize);
       }
     });
 
@@ -426,17 +418,14 @@ function HoverListEffect(globalRenderer) {
     });
   });
 
-  // MOUSE MOVE - relative to the entire viewport for better tracking
-  document.addEventListener("mousemove", (e) => {
+  // ENHANCED MOUSE MOVE - Better tracking within wrapper
+  wrapper.addEventListener("mousemove", (e) => {
     // Only track mouse when we're on the list tab and have an active effect
     if (window.WebGLEffects.getCurrentTab() !== 'Tab 2' || currentIndex === -1) return;
     
-    // Use viewport coordinates directly
-    targetX = e.clientX;
-    targetY = e.clientY;
-    
-    // Debug mouse position
-    // console.log('Mouse position:', targetX, targetY);
+    const rect = wrapper.getBoundingClientRect();
+    targetX = e.clientX - rect.left;
+    targetY = e.clientY - rect.top;
   });
 
   // RESIZE HANDLER
@@ -448,41 +437,39 @@ function HoverListEffect(globalRenderer) {
   window.addEventListener("resize", resizeHandler);
 
   function update() {
+    // Update time for ripple effect
     uniforms.uTime.value = Date.now() * 0.001;
 
     if (uniforms.uAlpha.value > 0 && currentIndex >= 0) {
-      // Smooth mouse offset for deformation using viewport coordinates
-      offset.x += (targetX - offset.x) * SETTINGS.deformation.smoothing;
-      offset.y += (targetY - offset.y) * SETTINGS.deformation.smoothing;
+      // Enhanced smooth lerping from your old code
+      offset.x = lerp(offset.x, targetX, SETTINGS.deformation.smoothing);
+      offset.y = lerp(offset.y, targetY, SETTINGS.deformation.smoothing);
 
-      // Calculate deformation relative to the mesh center
-      const meshCenterX = currentMeshPosition.x + (window.innerWidth / 2);
-      const meshCenterY = currentMeshPosition.y + (window.innerHeight / 2);
-      
-      // Calculate relative mouse position to mesh center
-      const relativeX = targetX - meshCenterX;
-      const relativeY = targetY - meshCenterY;
-      
-      // Apply deformation offsets (scaled down for subtlety)
+      // Enhanced deformation with better strength
       uniforms.uOffset.value.set(
-        relativeX * SETTINGS.deformation.strength,
-        -relativeY * SETTINGS.deformation.strength
+        (targetX - offset.x) * SETTINGS.deformation.strength,
+        -(targetY - offset.y) * SETTINGS.deformation.strength
       );
 
-      // RGB offset for chromatic aberration effect
-      uniforms.uRGBOffset.value.set(
-        relativeX * 0.0005,
-        relativeY * 0.0005
-      );
-
-      // Keep mesh at its base position
-      mesh.position.copy(currentMeshPosition);
+      // Enhanced RGB split on mouse movement
+      const mouseMovementX = (targetX - offset.x) * 0.001;
+      const mouseMovementY = (targetY - offset.y) * 0.001;
       
-      // Debug positioning
-      // console.log('Mesh center:', meshCenterX, meshCenterY, 'Mouse:', targetX, targetY, 'Relative:', relativeX, relativeY);
+      uniforms.uRGBOffset.value.set(mouseMovementX, mouseMovementY);
+
+      // Enhanced positioning - mesh follows mouse within wrapper bounds
+      const rect = wrapper.getBoundingClientRect();
+      const wrapperCenterX = rect.width / 2;
+      const wrapperCenterY = rect.height / 2;
+      
+      // Convert wrapper coordinates to world coordinates
+      const worldX = offset.x - wrapperCenterX;
+      const worldY = wrapperCenterY - offset.y;
+      
+      mesh.position.set(worldX, worldY, 0);
     }
 
-    // Handle texture transitions
+    // Enhanced transition handling
     if (transitioning && uniforms.uMixFactor.value < 1.0) {
       uniforms.uMixFactor.value += SETTINGS.transition.speed;
       if (uniforms.uMixFactor.value >= 1.0) {
@@ -491,7 +478,7 @@ function HoverListEffect(globalRenderer) {
       }
     }
 
-    // Handle fade out
+    // Enhanced fade out
     if (fadingOut && uniforms.uAlpha.value > 0.0) {
       uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
       if (uniforms.uAlpha.value <= 0.0) {
