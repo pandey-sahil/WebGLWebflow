@@ -207,7 +207,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 const scene = new THREE.Scene();
 
 // Camera
-const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(30, aspect, 0.1, 100);
 
 // Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
