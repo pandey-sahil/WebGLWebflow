@@ -207,7 +207,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 const scene = new THREE.Scene();
 
 // Camera
-const camera = new THREE.PerspectiveCamera(30, aspect, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
 
 // Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -219,7 +219,7 @@ document.getElementById("three-container").appendChild(renderer.domElement);
 THREE.ColorManagement.enabled = true; // default in recent three, explicit for clarity
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+//renderer.toneMappingExposure = 1.0;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // cap DPR for perf
 
 // Ambient light
