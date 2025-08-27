@@ -215,6 +215,13 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.getElementById("three-container").appendChild(renderer.domElement);
 
+// 🔎 Crisp rendering & correct color pipeline
+THREE.ColorManagement.enabled = true; // default in recent three, explicit for clarity
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // cap DPR for perf
+
 // Ambient light
 const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
 scene.add(ambientLight);
