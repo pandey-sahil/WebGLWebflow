@@ -220,7 +220,8 @@ THREE.ColorManagement.enabled = true; // default in recent three, explicit for c
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;   // back to default “old” look
 renderer.toneMappingExposure = 1.0;           // no effect in NoToneMapping
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // cap DPR for perf
+//renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // cap DPR for perf
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); 
 
 // Ambient light
 const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
