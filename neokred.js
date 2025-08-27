@@ -218,8 +218,8 @@ document.getElementById("three-container").appendChild(renderer.domElement);
 // 🔎 Crisp rendering & correct color pipeline
 THREE.ColorManagement.enabled = true; // default in recent three, explicit for clarity
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-//renderer.toneMappingExposure = 1.0;
+renderer.toneMapping = THREE.NoToneMapping;   // back to default “old” look
+renderer.toneMappingExposure = 1.0;           // no effect in NoToneMapping
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // cap DPR for perf
 
 // Ambient light
