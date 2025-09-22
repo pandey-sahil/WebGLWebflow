@@ -911,12 +911,19 @@ if (document.readyState !== "loading") {
 Footer Bulge Effect with Window Mouse Events
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */
+/*
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+Awwwards-Level Footer Effect - Train + Advanced Visuals
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+*/
 function initFooterBulgeEffect() {
-  console.log("initFooterBulgeEffect called");
+  console.log("🚂 Initializing Advanced Footer Effect");
 
+  const footerSection = document.querySelector('.footer-section');
   const footerContainer = document.querySelector('.footer-bg');
-  if (!footerContainer) {
-    console.warn("Footer container not found");
+  
+  if (!footerSection || !footerContainer) {
+    console.warn("Footer elements not found");
     return;
   }
 
@@ -926,91 +933,220 @@ function initFooterBulgeEffect() {
     return;
   }
 
-  // Remove old canvas if it exists
+  // Remove old canvas if exists
   const oldCanvas = footerContainer.querySelector(".footer-canvas");
-  if (oldCanvas) {
-    console.log("Removed old footer canvas");
-    oldCanvas.remove();
-  }
+  if (oldCanvas) oldCanvas.remove();
 
   const loader = new THREE.TextureLoader();
-
-  // Shader code (same as original)
+  
+  // Advanced vertex shader with wave distortions
   const vertexShader = `
     varying vec2 vUv;
+    varying vec3 vPosition;
+    uniform float uTime;
+    uniform vec2 uMouse;
+    uniform float uMouseStrength;
+    
     void main() {
       vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+      vPosition = position;
+      
+      vec3 pos = position;
+      
+      // Subtle breathing effect
+      pos.z += sin(uTime * 0.5 + position.x * 0.1) * 0.01;
+      pos.z += cos(uTime * 0.3 + position.y * 0.1) * 0.008;
+      
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
     }
   `;
 
+  // Ultra-advanced fragment shader
   const fragmentShader = `
     precision highp float;
     uniform sampler2D uTexture;
     uniform vec2 uMouse;
-    uniform float uHover;
     uniform float uTime;
+    uniform float uMouseStrength;
+    uniform vec2 uResolution;
+    
     varying vec2 vUv;
+    varying vec3 vPosition;
+    
+    // Trail positions (last 20 mouse positions)
+    uniform vec2 uTrail[20];
+    uniform float uTrailStrengths[20];
+    
+    // Noise function for organic effects
+    float random(vec2 st) {
+      return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+    }
+    
+    float noise(vec2 st) {
+      vec2 i = floor(st);
+      vec2 f = fract(st);
+      float a = random(i);
+      float b = random(i + vec2(1.0, 0.0));
+      float c = random(i + vec2(0.0, 1.0));
+      float d = random(i + vec2(1.0, 1.0));
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+    }
+    
+    // Fractal Brownian Motion
+    float fbm(vec2 st) {
+      float value = 0.0;
+      float amplitude = 0.5;
+      for(int i = 0; i < 4; i++) {
+        value += amplitude * noise(st);
+        st *= 2.0;
+        amplitude *= 0.5;
+      }
+      return value;
+    }
+    
+    // Advanced color palette
+    vec3 palette(float t) {
+      vec3 a = vec3(0.5, 0.5, 0.5);
+      vec3 b = vec3(0.5, 0.5, 0.5);
+      vec3 c = vec3(1.0, 1.0, 1.0);
+      vec3 d = vec3(0.263, 0.416, 0.557);
+      return a + b * cos(6.28318 * (c * t + d));
+    }
+    
     void main() {
       vec2 uv = vUv;
-      vec2 diff = uv - uMouse;
-      float dist = length(diff);
+      vec2 originalUv = uv;
       
-      // Smaller radius by increasing the multiplier (was 3.0, now 8.0)
-      uv -= diff * 0.25 * uHover * exp(-8.0*dist*dist);
+      float totalDistortion = 0.0;
+      float totalColorShift = 0.0;
+      vec3 trailColor = vec3(0.0);
       
+      // Process trail effects
+      for(int i = 0; i < 20; i++) {
+        vec2 trailPos = uTrail[i];
+        float trailStrength = uTrailStrengths[i];
+        
+        if(trailStrength > 0.01) {
+          vec2 diff = uv - trailPos;
+          float dist = length(diff);
+          
+          // Multiple falloff functions for complex effects
+          float influence1 = exp(-15.0 * dist * dist) * trailStrength;
+          float influence2 = exp(-8.0 * dist * dist) * trailStrength * 0.7;
+          float influence3 = exp(-25.0 * dist * dist) * trailStrength * 1.2;
+          
+          // Distortion with rotation
+          float angle = atan(diff.y, diff.x);
+          float rotatedAngle = angle + sin(uTime * 2.0 + float(i) * 0.5) * influence1 * 0.5;
+          vec2 rotatedDiff = vec2(cos(rotatedAngle), sin(rotatedAngle)) * length(diff);
+          
+          // Apply layered distortions
+          uv -= rotatedDiff * 0.15 * influence1;
+          uv -= diff * 0.08 * influence2 * sin(uTime + dist * 20.0);
+          
+          totalDistortion += influence1 + influence2 * 0.5;
+          totalColorShift += influence3;
+          
+          // Trail color accumulation
+          vec3 trailPalette = palette(float(i) * 0.1 + uTime * 0.2);
+          trailColor += trailPalette * influence3 * 0.3;
+        }
+      }
+      
+      // Add organic noise distortion
+      float noiseScale = 0.5 + totalDistortion * 2.0;
+      vec2 noiseOffset = vec2(
+        fbm(originalUv * 3.0 + uTime * 0.1) * 0.02 * noiseScale,
+        fbm(originalUv * 3.0 + uTime * 0.1 + 100.0) * 0.02 * noiseScale
+      );
+      uv += noiseOffset;
+      
+      // Sample texture with distorted coordinates
       vec4 color = texture2D(uTexture, uv);
       
-      // Add RGB color shifting based on time and distance
-      float colorShift = exp(-8.0*dist*dist) * uHover * 0.3;
-      color.r += sin(uTime * 2.0 + dist * 10.0) * colorShift;
-      color.g += sin(uTime * 2.5 + dist * 10.0 + 2.094) * colorShift;
-      color.b += sin(uTime * 3.0 + dist * 10.0 + 4.188) * colorShift;
+      // Advanced chromatic aberration
+      float aberration = totalDistortion * 0.008;
+      if(aberration > 0.0001) {
+        color.r = texture2D(uTexture, uv + vec2(aberration, 0.0)).r;
+        color.g = texture2D(uTexture, uv).g;
+        color.b = texture2D(uTexture, uv - vec2(aberration, 0.0)).b;
+      }
       
-      // Removed the glow effect (was: color.rgb += glow;)
-      gl_FragColor = color;
+      // Dynamic color grading
+      vec3 finalColor = color.rgb;
+      
+      // Add trail colors
+      finalColor = mix(finalColor, finalColor + trailColor, min(totalColorShift * 0.8, 0.6));
+      
+      // Psychedelic color shifts
+      if(totalColorShift > 0.1) {
+        float colorTime = uTime * 3.0 + totalDistortion * 10.0;
+        vec3 psychColor = palette(colorTime + length(originalUv - vec2(0.5)));
+        finalColor = mix(finalColor, psychColor, totalColorShift * 0.4);
+      }
+      
+      // Film grain
+      float grain = (random(originalUv + uTime * 0.1) - 0.5) * 0.03;
+      finalColor += grain * (1.0 - totalDistortion);
+      
+      // Vignette effect that responds to activity
+      float vignetteStrength = 0.3 - totalDistortion * 0.2;
+      float vignette = 1.0 - vignetteStrength * pow(length(originalUv - vec2(0.5)) * 1.4, 2.0);
+      finalColor *= vignette;
+      
+      // Subtle color temperature shift based on activity
+      float warmth = totalDistortion * 0.1;
+      finalColor.r += warmth * 0.1;
+      finalColor.b -= warmth * 0.05;
+      
+      // Final contrast and saturation boost
+      finalColor = pow(finalColor, vec3(0.95 + totalDistortion * 0.1));
+      float saturation = 1.0 + totalColorShift * 0.3;
+      float luminance = dot(finalColor, vec3(0.299, 0.587, 0.114));
+      finalColor = mix(vec3(luminance), finalColor, saturation);
+      
+      gl_FragColor = vec4(finalColor, color.a);
     }
   `;
 
-  // Load texture and setup WebGL
+  // Load texture
   const texture = loader.load(img.src, () => {
-    console.log("Footer texture loaded");
-    img.style.opacity = "0"; // hide original image once texture is ready
+    console.log("🎨 Advanced texture loaded");
+    img.style.opacity = "0";
   });
 
   const width = footerContainer.offsetWidth;
   const height = footerContainer.offsetHeight;
 
-  // Scene, camera, renderer
+  // Setup Three.js
   const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(
-    -width / 2,
-    width / 2,
-    height / 2,
-    -height / 2,
-    0.1,
-    10
-  );
+  const camera = new THREE.OrthographicCamera(-width/2, width/2, height/2, -height/2, 0.1, 10);
   camera.position.z = 1;
 
   const renderer = new THREE.WebGLRenderer({
     alpha: true,
     antialias: true,
+    powerPreference: "high-performance"
   });
   renderer.setSize(width, height);
-  renderer.setPixelRatio(window.devicePixelRatio);
-
-  // Add class and append to footer container
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.domElement.classList.add("footer-canvas");
   footerContainer.appendChild(renderer.domElement);
-  console.log("Added canvas to footer");
 
+  // Trail system for mouse positions
+  const trailPositions = Array(20).fill().map(() => new THREE.Vector2(0.5, 0.5));
+  const trailStrengths = Array(20).fill(0);
+  
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTexture: { value: texture },
       uMouse: { value: new THREE.Vector2(0.5, 0.5) },
-      uHover: { value: 0 },
       uTime: { value: 0 },
+      uMouseStrength: { value: 0 },
+      uResolution: { value: new THREE.Vector2(width, height) },
+      uTrail: { value: trailPositions },
+      uTrailStrengths: { value: trailStrengths }
     },
     vertexShader,
     fragmentShader,
@@ -1022,49 +1158,84 @@ function initFooterBulgeEffect() {
   scene.add(mesh);
 
   let animationId;
+  let lastMouseTime = 0;
+  let mouseVelocity = 0;
+  let lastMousePos = { x: 0.5, y: 0.5 };
 
-  const footerSection = document.querySelector('.footer-section');
-  if (!footerSection) {
-    console.warn("Footer section not found");
-    return;
-  }
-
-  // Footer section mouse move handler
+  // Advanced mouse movement handler
   function handleFooterMouseMove(e) {
     const rect = footerContainer.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = 1 - (e.clientY - rect.top) / rect.height;
+    
+    // Calculate velocity for dynamic effects
+    const currentTime = performance.now();
+    const deltaTime = currentTime - lastMouseTime;
+    const deltaX = x - lastMousePos.x;
+    const deltaY = y - lastMousePos.y;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    
+    if (deltaTime > 0) {
+      mouseVelocity = distance / deltaTime * 1000; // pixels per second
+      mouseVelocity = Math.min(mouseVelocity, 5.0); // Cap velocity
+    }
+    
+    // Update trail system
+    trailPositions.unshift(new THREE.Vector2(x, y));
+    trailPositions.pop();
+    
+    const baseStrength = Math.min(mouseVelocity * 0.3 + 0.2, 1.0);
+    trailStrengths.unshift(baseStrength);
+    trailStrengths.pop();
+    
+    // Update uniforms
     material.uniforms.uMouse.value.set(x, y);
-    material.uniforms.uHover.value += (1.0 - material.uniforms.uHover.value) * 0.2;
+    material.uniforms.uMouseStrength.value = baseStrength;
+    material.uniforms.uTrail.value = trailPositions;
+    material.uniforms.uTrailStrengths.value = trailStrengths;
+    
+    lastMouseTime = currentTime;
+    lastMousePos = { x, y };
   }
 
   function handleFooterMouseLeave() {
-    console.log("Mouse left footer section");
-    // Gradually reduce effect when mouse leaves
-    material.uniforms.uHover.value *= 0.9;
+    console.log("🌊 Mouse left footer - fading effects");
+    // Don't reset immediately, let animation loop handle fade
   }
 
-  // Add event listeners to footer section
+  // Event listeners
   footerSection.addEventListener("mousemove", handleFooterMouseMove);
   footerSection.addEventListener("mouseleave", handleFooterMouseLeave);
 
-  // Animation loop
+  // High-performance animation loop
   function animate() {
     animationId = requestAnimationFrame(animate);
-    material.uniforms.uHover.value *= 0.97;
-    material.uniforms.uTime.value += 0.016; // ~60fps time increment
+    
+    // Update time
+    material.uniforms.uTime.value += 0.016;
+    
+    // Fade mouse strength and trail
+    material.uniforms.uMouseStrength.value *= 0.98;
+    
+    // Fade trail strengths
+    for (let i = 0; i < trailStrengths.length; i++) {
+      trailStrengths[i] *= 0.95;
+      if (i > 0) {
+        trailStrengths[i] *= 0.85; // Older trail points fade faster
+      }
+    }
+    material.uniforms.uTrailStrengths.value = trailStrengths;
+    
     renderer.render(scene, camera);
   }
   animate();
 
   // Cleanup function
   function cleanup() {
-    console.log("Cleaning up footer bulge effect");
+    console.log("🧹 Advanced cleanup initiated");
     footerSection.removeEventListener("mousemove", handleFooterMouseMove);
     footerSection.removeEventListener("mouseleave", handleFooterMouseLeave);
-    if (animationId) {
-      cancelAnimationFrame(animationId);
-    }
+    if (animationId) cancelAnimationFrame(animationId);
     if (renderer.domElement.parentNode) {
       renderer.domElement.parentNode.removeChild(renderer.domElement);
     }
@@ -1074,10 +1245,9 @@ function initFooterBulgeEffect() {
     renderer.dispose();
   }
 
-  // Store cleanup function for external access
   window.footerBulgeCleanup = cleanup;
 
-  // Handle window resize
+  // Enhanced resize handler
   function handleResize() {
     const newWidth = footerContainer.offsetWidth;
     const newHeight = footerContainer.offsetHeight;
@@ -1090,12 +1260,13 @@ function initFooterBulgeEffect() {
     
     renderer.setSize(newWidth, newHeight);
     mesh.scale.set(newWidth, newHeight, 1);
+    material.uniforms.uResolution.value.set(newWidth, newHeight);
   }
   
   window.addEventListener("resize", handleResize);
 
-  console.log("Footer bulge effect initialized");
+  console.log("🏆 Awwwards-level footer effect initialized!");
 }
 
-// Initialize the effect
+// Initialize the magic
 initFooterBulgeEffect();
