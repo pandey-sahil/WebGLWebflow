@@ -9,15 +9,15 @@ function initWebGLDistortion(container) {
   const settings = {
     falloff: 0.12,
     alpha: 0.97,
-    dissipation: 0.95,
-    distortionStrength: Number.parseFloat(container.dataset.distortionStrength) || 0.08,
-    chromaticAberration: 0.0035,
-    chromaticSpread: 0.85,
+    dissipation: 1.0,
+    distortionStrength: Number.parseFloat(container.dataset.distortionStrength) || 0.010,
+    chromaticAberration: 0.035,
+    chromaticSpread: 1,
     velocityScale: 0.6,
     velocityDamping: 0.85,
     mouseRadius: 0.12,
     motionBlurStrength: 0.45,
-    motionBlurDecay: 0.9,
+    motionBlurDecay: 1,
     motionBlurThreshold: 0.5,
   }
 
@@ -137,9 +137,6 @@ function initWebGLDistortion(container) {
 
       vec3 color = vec3(r, g, b);
 
-      vec3 glowColor = color * (1.0 + pow(flowMagnitude, 2.2) * 0.05);
-      color = mix(color, glowColor, smoothstep(0.05, 0.3, flowMagnitude) * 0.2);
-
       vec4 currentColor = vec4(color, alpha);
       if (!uIsFirstFrame) {
         vec4 previousColor = texture2D(uPreviousFrame, uv);
@@ -149,9 +146,6 @@ function initWebGLDistortion(container) {
         float blendedAlpha = max(currentColor.a, previousColor.a * uMotionBlurDecay);
         currentColor = vec4(blendedColor, blendedAlpha);
       }
-
-      float vignette = smoothstep(0.95, 0.7, length(vUv-0.5));
-      currentColor.rgb *= mix(1.0, 0.98, vignette * (1.0-flowMagnitude));
 
       currentColor.rgb = clamp(currentColor.rgb, 0.0, 1.0);
       gl_FragColor = currentColor;
