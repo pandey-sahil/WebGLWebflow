@@ -906,8 +906,6 @@ if (document.readyState !== "loading") {
 
 
 
-
-
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 Footer Bulge Effect with Window Mouse Events
@@ -951,15 +949,25 @@ function initFooterBulgeEffect() {
     uniform sampler2D uTexture;
     uniform vec2 uMouse;
     uniform float uHover;
+    uniform float uTime;
     varying vec2 vUv;
     void main() {
       vec2 uv = vUv;
       vec2 diff = uv - uMouse;
       float dist = length(diff);
-      uv -= diff * 0.25 * uHover * exp(-3.0*dist*dist);
+      
+      // Smaller radius by increasing the multiplier (was 3.0, now 8.0)
+      uv -= diff * 0.25 * uHover * exp(-8.0*dist*dist);
+      
       vec4 color = texture2D(uTexture, uv);
-      float glow = exp(-3.0*dist*dist) * 0.25;
-      color.rgb += glow;
+      
+      // Add RGB color shifting based on time and distance
+      float colorShift = exp(-8.0*dist*dist) * uHover * 0.3;
+      color.r += sin(uTime * 2.0 + dist * 10.0) * colorShift;
+      color.g += sin(uTime * 2.5 + dist * 10.0 + 2.094) * colorShift;
+      color.b += sin(uTime * 3.0 + dist * 10.0 + 4.188) * colorShift;
+      
+      // Removed the glow effect (was: color.rgb += glow;)
       gl_FragColor = color;
     }
   `;
@@ -1002,6 +1010,7 @@ function initFooterBulgeEffect() {
       uTexture: { value: texture },
       uMouse: { value: new THREE.Vector2(0.5, 0.5) },
       uHover: { value: 0 },
+      uTime: { value: 0 },
     },
     vertexShader,
     fragmentShader,
@@ -1043,6 +1052,7 @@ function initFooterBulgeEffect() {
   function animate() {
     animationId = requestAnimationFrame(animate);
     material.uniforms.uHover.value *= 0.97;
+    material.uniforms.uTime.value += 0.016; // ~60fps time increment
     renderer.render(scene, camera);
   }
   animate();
