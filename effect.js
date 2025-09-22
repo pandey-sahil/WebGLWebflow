@@ -904,20 +904,13 @@ if (document.readyState !== "loading") {
 
 
 
-
-
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-Footer Bulge Effect with Window Mouse Events
-☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-*/
-/*
-☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-Awwwards-Level Footer Effect - Train + Advanced Visuals
+Footer Grid Distortion Effect (Based on webgl-grid-anime)
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */
 function initFooterBulgeEffect() {
-  console.log("🚂 Initializing Advanced Footer Effect");
+  console.log("🎨 Initializing Footer Grid Effect");
 
   const footerSection = document.querySelector('.footer-section');
   const footerContainer = document.querySelector('.footer-bg');
@@ -937,336 +930,192 @@ function initFooterBulgeEffect() {
   const oldCanvas = footerContainer.querySelector(".footer-canvas");
   if (oldCanvas) oldCanvas.remove();
 
-  const loader = new THREE.TextureLoader();
-  
-  // Advanced vertex shader with wave distortions
-  const vertexShader = `
-    varying vec2 vUv;
-    varying vec3 vPosition;
-    uniform float uTime;
-    uniform vec2 uMouse;
-    uniform float uMouseStrength;
-    
-    void main() {
-      vUv = uv;
-      vPosition = position;
-      
-      vec3 pos = position;
-      
-      // Subtle breathing effect
-      pos.z += sin(uTime * 0.5 + position.x * 0.1) * 0.01;
-      pos.z += cos(uTime * 0.3 + position.y * 0.1) * 0.008;
-      
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-    }
-  `;
+  // Settings for the effect
+  const settings = {
+    gridSize: 40.0,
+    aberrationStrength: 0.01,
+    distortionAmount: 0.25,
+    easeFactor: 0.08,
+  };
 
-  // Ultra-advanced fragment shader
-  const fragmentShader = `
-    precision highp float;
-    uniform sampler2D uTexture;
-    uniform vec2 uMouse;
-    uniform float uTime;
-    uniform float uMouseStrength;
-    uniform vec2 uResolution;
+  const textureLoader = new THREE.TextureLoader();
+  textureLoader.load(img.src, (texture) => {
+    console.log("🖼️ Footer texture loaded");
     
-    varying vec2 vUv;
-    varying vec3 vPosition;
-    
-    // Trail positions (last 20 mouse positions)
-    uniform vec2 uTrail[20];
-    uniform float uTrailStrengths[20];
-    
-    // Noise function for organic effects
-    float random(vec2 st) {
-      return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
-    }
-    
-    float noise(vec2 st) {
-      vec2 i = floor(st);
-      vec2 f = fract(st);
-      float a = random(i);
-      float b = random(i + vec2(1.0, 0.0));
-      float c = random(i + vec2(0.0, 1.0));
-      float d = random(i + vec2(1.0, 1.0));
-      vec2 u = f * f * (3.0 - 2.0 * f);
-      return mix(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
-    }
-    
-    // Fractal Brownian Motion
-    float fbm(vec2 st) {
-      float value = 0.0;
-      float amplitude = 0.5;
-      for(int i = 0; i < 4; i++) {
-        value += amplitude * noise(st);
-        st *= 2.0;
-        amplitude *= 0.5;
-      }
-      return value;
-    }
-    
-    // Advanced color palette
-    vec3 palette(float t) {
-      vec3 a = vec3(0.5, 0.5, 0.5);
-      vec3 b = vec3(0.5, 0.5, 0.5);
-      vec3 c = vec3(1.0, 1.0, 1.0);
-      vec3 d = vec3(0.263, 0.416, 0.557);
-      return a + b * cos(6.28318 * (c * t + d));
-    }
-    
-    void main() {
-      vec2 uv = vUv;
-      vec2 originalUv = uv;
-      
-      float totalDistortion = 0.0;
-      float totalColorShift = 0.0;
-      vec3 trailColor = vec3(0.0);
-      
-      // Process trail effects
-      for(int i = 0; i < 20; i++) {
-        vec2 trailPos = uTrail[i];
-        float trailStrength = uTrailStrengths[i];
-        
-        if(trailStrength > 0.01) {
-          vec2 diff = uv - trailPos;
-          float dist = length(diff);
-          
-          // Multiple falloff functions for complex effects
-          float influence1 = exp(-15.0 * dist * dist) * trailStrength;
-          float influence2 = exp(-8.0 * dist * dist) * trailStrength * 0.7;
-          float influence3 = exp(-25.0 * dist * dist) * trailStrength * 1.2;
-          
-          // Distortion with rotation
-          float angle = atan(diff.y, diff.x);
-          float rotatedAngle = angle + sin(uTime * 2.0 + float(i) * 0.5) * influence1 * 0.5;
-          vec2 rotatedDiff = vec2(cos(rotatedAngle), sin(rotatedAngle)) * length(diff);
-          
-          // Apply layered distortions
-          uv -= rotatedDiff * 0.15 * influence1;
-          uv -= diff * 0.08 * influence2 * sin(uTime + dist * 20.0);
-          
-          totalDistortion += influence1 + influence2 * 0.5;
-          totalColorShift += influence3;
-          
-          // Trail color accumulation
-          vec3 trailPalette = palette(float(i) * 0.1 + uTime * 0.2);
-          trailColor += trailPalette * influence3 * 0.3;
-        }
-      }
-      
-      // Add organic noise distortion
-      float noiseScale = 0.5 + totalDistortion * 2.0;
-      vec2 noiseOffset = vec2(
-        fbm(originalUv * 3.0 + uTime * 0.1) * 0.02 * noiseScale,
-        fbm(originalUv * 3.0 + uTime * 0.1 + 100.0) * 0.02 * noiseScale
-      );
-      uv += noiseOffset;
-      
-      // Sample texture with distorted coordinates
-      vec4 color = texture2D(uTexture, uv);
-      
-      // Advanced chromatic aberration
-      float aberration = totalDistortion * 0.008;
-      if(aberration > 0.0001) {
-        color.r = texture2D(uTexture, uv + vec2(aberration, 0.0)).r;
-        color.g = texture2D(uTexture, uv).g;
-        color.b = texture2D(uTexture, uv - vec2(aberration, 0.0)).b;
-      }
-      
-      // Dynamic color grading
-      vec3 finalColor = color.rgb;
-      
-      // Add trail colors
-      finalColor = mix(finalColor, finalColor + trailColor, min(totalColorShift * 0.8, 0.6));
-      
-      // Psychedelic color shifts
-      if(totalColorShift > 0.1) {
-        float colorTime = uTime * 3.0 + totalDistortion * 10.0;
-        vec3 psychColor = palette(colorTime + length(originalUv - vec2(0.5)));
-        finalColor = mix(finalColor, psychColor, totalColorShift * 0.4);
-      }
-      
-      // Film grain
-      float grain = (random(originalUv + uTime * 0.1) - 0.5) * 0.03;
-      finalColor += grain * (1.0 - totalDistortion);
-      
-      // Vignette effect that responds to activity
-      float vignetteStrength = 0.3 - totalDistortion * 0.2;
-      float vignette = 1.0 - vignetteStrength * pow(length(originalUv - vec2(0.5)) * 1.4, 2.0);
-      finalColor *= vignette;
-      
-      // Subtle color temperature shift based on activity
-      float warmth = totalDistortion * 0.1;
-      finalColor.r += warmth * 0.1;
-      finalColor.b -= warmth * 0.05;
-      
-      // Final contrast and saturation boost
-      finalColor = pow(finalColor, vec3(0.95 + totalDistortion * 0.1));
-      float saturation = 1.0 + totalColorShift * 0.3;
-      float luminance = dot(finalColor, vec3(0.299, 0.587, 0.114));
-      finalColor = mix(vec3(luminance), finalColor, saturation);
-      
-      gl_FragColor = vec4(finalColor, color.a);
-    }
-  `;
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const scene = new THREE.Scene();
 
-  // Load texture
-  const texture = loader.load(img.src, () => {
-    console.log("🎨 Advanced texture loaded");
-    img.style.opacity = "0";
+    const scale = 1;
+    const camera = new THREE.OrthographicCamera(
+      -imgRatio * scale,
+      imgRatio * scale,
+      scale,
+      -scale,
+      0.1,
+      10
+    );
+    camera.position.z = 1;
+
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.domElement.classList.add("footer-canvas");
+    footerContainer.appendChild(renderer.domElement);
+
+    const uniforms = {
+      u_texture: { value: texture },
+      u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
+      u_prevMouse: { value: new THREE.Vector2(0.5, 0.5) },
+      u_aberrationIntensity: { value: 0 },
+      u_time: { value: 0 },
+      u_gridSize: { value: settings.gridSize },
+      u_aberrationStrength: { value: settings.aberrationStrength },
+      u_distortionAmount: { value: settings.distortionAmount },
+      u_resolution: { value: new THREE.Vector2() },
+    };
+
+    const vertexShader = `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+
+    const fragmentShader = `
+      varying vec2 vUv;
+      uniform sampler2D u_texture;
+      uniform vec2 u_mouse;
+      uniform vec2 u_prevMouse;
+      uniform float u_aberrationIntensity;
+      uniform float u_gridSize;
+      uniform float u_aberrationStrength;
+      uniform float u_distortionAmount;
+      uniform vec2 u_resolution;
+
+      void main() {
+        vec2 gridScale = vec2(u_gridSize);
+        float aspect = u_resolution.x / u_resolution.y;
+        gridScale.y *= aspect;
+
+        vec2 gridUV = floor(vUv * gridScale) / gridScale;
+        vec2 centerOfPixel = gridUV + vec2(0.5) / gridScale;
+
+        vec2 mouseDir = u_mouse - u_prevMouse;
+        vec2 pixelDir = centerOfPixel - u_mouse;
+        float distance = length(pixelDir);
+        float strength = smoothstep(0.3, 0.0, distance);
+
+        vec2 uvOffset = strength * -mouseDir * u_distortionAmount;
+        vec2 uv = vUv - uvOffset;
+
+        vec4 colorR = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * u_aberrationStrength, 0.0));
+        vec4 colorG = texture2D(u_texture, uv);
+        vec4 colorB = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * u_aberrationStrength, 0.0));
+
+        gl_FragColor = vec4(colorR.r, colorG.g, colorB.b, 1.0);
+      }
+    `;
+
+    const geometry = new THREE.PlaneGeometry(2 * imgRatio, 2);
+    const material = new THREE.ShaderMaterial({
+      uniforms,
+      vertexShader,
+      fragmentShader,
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    let easeFactor = settings.easeFactor;
+    let mouse = { x: 0.5, y: 0.5 };
+    let target = { x: 0.5, y: 0.5 };
+    let prev = { x: 0.5, y: 0.5 };
+    let intensity = 0;
+    let animationId;
+
+    function resize() {
+      const width = footerContainer.offsetWidth;
+      const height = width / imgRatio;
+      renderer.setSize(width, height);
+      renderer.domElement.style.width = `${width}px`;
+      renderer.domElement.style.height = `${height}px`;
+      uniforms.u_resolution.value.set(width, height);
+    }
+
+    resize();
+
+    function animate() {
+      animationId = requestAnimationFrame(animate);
+      mouse.x += (target.x - mouse.x) * easeFactor;
+      mouse.y += (target.y - mouse.y) * easeFactor;
+
+      uniforms.u_time.value = performance.now() * 0.001;
+      uniforms.u_mouse.value.set(mouse.x, 1.0 - mouse.y);
+      uniforms.u_prevMouse.value.set(prev.x, 1.0 - prev.y);
+      intensity = Math.max(0, intensity - 0.05);
+      uniforms.u_aberrationIntensity.value = intensity;
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Footer section event handlers
+    function handleFooterMouseMove(e) {
+      const rect = footerContainer.getBoundingClientRect();
+      prev = { ...target };
+      target.x = (e.clientX - rect.left) / rect.width;
+      target.y = (e.clientY - rect.top) / rect.height;
+      intensity = 1;
+    }
+
+    function handleFooterMouseEnter(e) {
+      const rect = footerContainer.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      target.x = mouse.x = x;
+      target.y = mouse.y = y;
+    }
+
+    function handleFooterMouseLeave() {
+      console.log("🌊 Mouse left footer section");
+      easeFactor = 0.05;
+      target = { ...prev };
+    }
+
+    // Add event listeners to footer section
+    footerSection.addEventListener("mousemove", handleFooterMouseMove);
+    footerSection.addEventListener("mouseenter", handleFooterMouseEnter);
+    footerSection.addEventListener("mouseleave", handleFooterMouseLeave);
+
+    // Cleanup function
+    function cleanup() {
+      console.log("🧹 Cleaning up footer grid effect");
+      footerSection.removeEventListener("mousemove", handleFooterMouseMove);
+      footerSection.removeEventListener("mouseenter", handleFooterMouseEnter);
+      footerSection.removeEventListener("mouseleave", handleFooterMouseLeave);
+      window.removeEventListener("resize", resize);
+      
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+      if (renderer.domElement.parentNode) {
+        renderer.domElement.parentNode.removeChild(renderer.domElement);
+      }
+      geometry.dispose();
+      material.dispose();
+      texture.dispose();
+      renderer.dispose();
+    }
+
+    window.footerBulgeCleanup = cleanup;
+    window.addEventListener("resize", resize);
+
+    // Hide original image
+    img.style.visibility = "hidden";
+    
+    console.log("✅ Footer grid effect initialized successfully!");
   });
-
-  const width = footerContainer.offsetWidth;
-  const height = footerContainer.offsetHeight;
-
-  // Setup Three.js
-  const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(-width/2, width/2, height/2, -height/2, 0.1, 10);
-  camera.position.z = 1;
-
-  const renderer = new THREE.WebGLRenderer({
-    alpha: true,
-    antialias: true,
-    powerPreference: "high-performance"
-  });
-  renderer.setSize(width, height);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.domElement.classList.add("footer-canvas");
-  footerContainer.appendChild(renderer.domElement);
-
-  // Trail system for mouse positions
-  const trailPositions = Array(20).fill().map(() => new THREE.Vector2(0.5, 0.5));
-  const trailStrengths = Array(20).fill(0);
-  
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      uTexture: { value: texture },
-      uMouse: { value: new THREE.Vector2(0.5, 0.5) },
-      uTime: { value: 0 },
-      uMouseStrength: { value: 0 },
-      uResolution: { value: new THREE.Vector2(width, height) },
-      uTrail: { value: trailPositions },
-      uTrailStrengths: { value: trailStrengths }
-    },
-    vertexShader,
-    fragmentShader,
-  });
-
-  const geometry = new THREE.PlaneGeometry(1, 1);
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.scale.set(width, height, 1);
-  scene.add(mesh);
-
-  let animationId;
-  let lastMouseTime = 0;
-  let mouseVelocity = 0;
-  let lastMousePos = { x: 0.5, y: 0.5 };
-
-  // Advanced mouse movement handler
-  function handleFooterMouseMove(e) {
-    const rect = footerContainer.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = 1 - (e.clientY - rect.top) / rect.height;
-    
-    // Calculate velocity for dynamic effects
-    const currentTime = performance.now();
-    const deltaTime = currentTime - lastMouseTime;
-    const deltaX = x - lastMousePos.x;
-    const deltaY = y - lastMousePos.y;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    
-    if (deltaTime > 0) {
-      mouseVelocity = distance / deltaTime * 1000; // pixels per second
-      mouseVelocity = Math.min(mouseVelocity, 5.0); // Cap velocity
-    }
-    
-    // Update trail system
-    trailPositions.unshift(new THREE.Vector2(x, y));
-    trailPositions.pop();
-    
-    const baseStrength = Math.min(mouseVelocity * 0.3 + 0.2, 1.0);
-    trailStrengths.unshift(baseStrength);
-    trailStrengths.pop();
-    
-    // Update uniforms
-    material.uniforms.uMouse.value.set(x, y);
-    material.uniforms.uMouseStrength.value = baseStrength;
-    material.uniforms.uTrail.value = trailPositions;
-    material.uniforms.uTrailStrengths.value = trailStrengths;
-    
-    lastMouseTime = currentTime;
-    lastMousePos = { x, y };
-  }
-
-  function handleFooterMouseLeave() {
-    console.log("🌊 Mouse left footer - fading effects");
-    // Don't reset immediately, let animation loop handle fade
-  }
-
-  // Event listeners
-  footerSection.addEventListener("mousemove", handleFooterMouseMove);
-  footerSection.addEventListener("mouseleave", handleFooterMouseLeave);
-
-  // High-performance animation loop
-  function animate() {
-    animationId = requestAnimationFrame(animate);
-    
-    // Update time
-    material.uniforms.uTime.value += 0.016;
-    
-    // Fade mouse strength and trail
-    material.uniforms.uMouseStrength.value *= 0.98;
-    
-    // Fade trail strengths
-    for (let i = 0; i < trailStrengths.length; i++) {
-      trailStrengths[i] *= 0.95;
-      if (i > 0) {
-        trailStrengths[i] *= 0.85; // Older trail points fade faster
-      }
-    }
-    material.uniforms.uTrailStrengths.value = trailStrengths;
-    
-    renderer.render(scene, camera);
-  }
-  animate();
-
-  // Cleanup function
-  function cleanup() {
-    console.log("🧹 Advanced cleanup initiated");
-    footerSection.removeEventListener("mousemove", handleFooterMouseMove);
-    footerSection.removeEventListener("mouseleave", handleFooterMouseLeave);
-    if (animationId) cancelAnimationFrame(animationId);
-    if (renderer.domElement.parentNode) {
-      renderer.domElement.parentNode.removeChild(renderer.domElement);
-    }
-    geometry.dispose();
-    material.dispose();
-    texture.dispose();
-    renderer.dispose();
-  }
-
-  window.footerBulgeCleanup = cleanup;
-
-  // Enhanced resize handler
-  function handleResize() {
-    const newWidth = footerContainer.offsetWidth;
-    const newHeight = footerContainer.offsetHeight;
-    
-    camera.left = -newWidth / 2;
-    camera.right = newWidth / 2;
-    camera.top = newHeight / 2;
-    camera.bottom = -newHeight / 2;
-    camera.updateProjectionMatrix();
-    
-    renderer.setSize(newWidth, newHeight);
-    mesh.scale.set(newWidth, newHeight, 1);
-    material.uniforms.uResolution.value.set(newWidth, newHeight);
-  }
-  
-  window.addEventListener("resize", handleResize);
-
-  console.log("🏆 Awwwards-level footer effect initialized!");
 }
 
-// Initialize the magic
+// Initialize the effect
 initFooterBulgeEffect();
