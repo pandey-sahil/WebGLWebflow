@@ -892,3 +892,200 @@ if (document.readyState !== "loading") {
     }, 500);
   }, 100);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+Footer Bulge Effect with Window Mouse Events
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+*/
+function initFooterBulgeEffect() {
+  console.log("initFooterBulgeEffect called");
+
+  const footerContainer = document.querySelector('.footer-bg');
+  if (!footerContainer) {
+    console.warn("Footer container not found");
+    return;
+  }
+
+  const img = footerContainer.querySelector('.footer-bg-image');
+  if (!img) {
+    console.warn("Footer background image not found");
+    return;
+  }
+
+  // Remove old canvas if it exists
+  const oldCanvas = footerContainer.querySelector(".footer-canvas");
+  if (oldCanvas) {
+    console.log("Removed old footer canvas");
+    oldCanvas.remove();
+  }
+
+  const loader = new THREE.TextureLoader();
+
+  // Shader code (same as original)
+  const vertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+    }
+  `;
+
+  const fragmentShader = `
+    precision highp float;
+    uniform sampler2D uTexture;
+    uniform vec2 uMouse;
+    uniform float uHover;
+    varying vec2 vUv;
+    void main() {
+      vec2 uv = vUv;
+      vec2 diff = uv - uMouse;
+      float dist = length(diff);
+      uv -= diff * 0.25 * uHover * exp(-3.0*dist*dist);
+      vec4 color = texture2D(uTexture, uv);
+      float glow = exp(-3.0*dist*dist) * 0.25;
+      color.rgb += glow;
+      gl_FragColor = color;
+    }
+  `;
+
+  // Load texture and setup WebGL
+  const texture = loader.load(img.src, () => {
+    console.log("Footer texture loaded");
+    img.style.opacity = "0"; // hide original image once texture is ready
+  });
+
+  const width = footerContainer.offsetWidth;
+  const height = footerContainer.offsetHeight;
+
+  // Scene, camera, renderer
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(
+    -width / 2,
+    width / 2,
+    height / 2,
+    -height / 2,
+    0.1,
+    10
+  );
+  camera.position.z = 1;
+
+  const renderer = new THREE.WebGLRenderer({
+    alpha: true,
+    antialias: true,
+  });
+  renderer.setSize(width, height);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  // Add class and append to footer container
+  renderer.domElement.classList.add("footer-canvas");
+  footerContainer.appendChild(renderer.domElement);
+  console.log("Added canvas to footer");
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uTexture: { value: texture },
+      uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+      uHover: { value: 0 },
+    },
+    vertexShader,
+    fragmentShader,
+  });
+
+  const geometry = new THREE.PlaneGeometry(1, 1);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.scale.set(width, height, 1);
+  scene.add(mesh);
+
+  let animationId;
+
+  const footerSection = document.querySelector('.footer-section');
+  if (!footerSection) {
+    console.warn("Footer section not found");
+    return;
+  }
+
+  // Footer section mouse move handler
+  function handleFooterMouseMove(e) {
+    const rect = footerContainer.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = 1 - (e.clientY - rect.top) / rect.height;
+    material.uniforms.uMouse.value.set(x, y);
+    material.uniforms.uHover.value += (1.0 - material.uniforms.uHover.value) * 0.2;
+  }
+
+  function handleFooterMouseLeave() {
+    console.log("Mouse left footer section");
+    // Gradually reduce effect when mouse leaves
+    material.uniforms.uHover.value *= 0.9;
+  }
+
+  // Add event listeners to footer section
+  footerSection.addEventListener("mousemove", handleFooterMouseMove);
+  footerSection.addEventListener("mouseleave", handleFooterMouseLeave);
+
+  // Animation loop
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    material.uniforms.uHover.value *= 0.97;
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // Cleanup function
+  function cleanup() {
+    console.log("Cleaning up footer bulge effect");
+    footerSection.removeEventListener("mousemove", handleFooterMouseMove);
+    footerSection.removeEventListener("mouseleave", handleFooterMouseLeave);
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+    }
+    if (renderer.domElement.parentNode) {
+      renderer.domElement.parentNode.removeChild(renderer.domElement);
+    }
+    geometry.dispose();
+    material.dispose();
+    texture.dispose();
+    renderer.dispose();
+  }
+
+  // Store cleanup function for external access
+  window.footerBulgeCleanup = cleanup;
+
+  // Handle window resize
+  function handleResize() {
+    const newWidth = footerContainer.offsetWidth;
+    const newHeight = footerContainer.offsetHeight;
+    
+    camera.left = -newWidth / 2;
+    camera.right = newWidth / 2;
+    camera.top = newHeight / 2;
+    camera.bottom = -newHeight / 2;
+    camera.updateProjectionMatrix();
+    
+    renderer.setSize(newWidth, newHeight);
+    mesh.scale.set(newWidth, newHeight, 1);
+  }
+  
+  window.addEventListener("resize", handleResize);
+
+  console.log("Footer bulge effect initialized");
+}
+
+// Initialize the effect
+initFooterBulgeEffect();
