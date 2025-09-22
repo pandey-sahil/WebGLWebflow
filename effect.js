@@ -901,7 +901,6 @@ if (document.readyState !== "loading") {
 
 
 
-
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 Footer Grid Distortion Effect (Based on webgl-grid-anime)
@@ -943,12 +942,16 @@ function initFooterBulgeEffect() {
     const imgRatio = img.naturalWidth / img.naturalHeight;
     const scene = new THREE.Scene();
 
-    const scale = 1;
+    // Use container aspect ratio for camera
+    const containerWidth = footerContainer.offsetWidth;
+    const containerHeight = footerContainer.offsetHeight;
+    const containerRatio = containerWidth / containerHeight;
+
     const camera = new THREE.OrthographicCamera(
-      -imgRatio * scale,
-      imgRatio * scale,
-      scale,
-      -scale,
+      -containerRatio,
+      containerRatio,
+      1,
+      -1,
       0.1,
       10
     );
@@ -1035,6 +1038,22 @@ function initFooterBulgeEffect() {
     });
 
     const mesh = new THREE.Mesh(geometry, material);
+    
+    // Calculate initial cover scaling
+    const containerRatio = containerWidth / containerHeight;
+    let scaleX, scaleY;
+    
+    if (containerRatio > imgRatio) {
+      // Container is wider than image - scale to width
+      scaleX = containerRatio / imgRatio;
+      scaleY = 1;
+    } else {
+      // Container is taller than image - scale to height
+      scaleX = 1;
+      scaleY = imgRatio / containerRatio;
+    }
+    
+    mesh.scale.set(2 * imgRatio * scaleX, 2 * scaleY, 1);
     scene.add(mesh);
 
     let easeFactor = settings.easeFactor;
@@ -1046,10 +1065,37 @@ function initFooterBulgeEffect() {
 
     function resize() {
       const width = footerContainer.offsetWidth;
-      const height = width / imgRatio;
+      const height = footerContainer.offsetHeight;
+      
+      // Set canvas to full container size
       renderer.setSize(width, height);
-      renderer.domElement.style.width = `${width}px`;
-      renderer.domElement.style.height = `${height}px`;
+      renderer.domElement.style.width = `100%`;
+      renderer.domElement.style.height = `100%`;
+      
+      // Calculate cover scaling for the image
+      const containerRatio = width / height;
+      let scaleX, scaleY;
+      
+      if (containerRatio > imgRatio) {
+        // Container is wider than image - scale to width
+        scaleX = containerRatio / imgRatio;
+        scaleY = 1;
+      } else {
+        // Container is taller than image - scale to height
+        scaleX = 1;
+        scaleY = imgRatio / containerRatio;
+      }
+      
+      // Update geometry scale for cover behavior
+      mesh.scale.set(2 * imgRatio * scaleX, 2 * scaleY, 1);
+      
+      // Update camera for new aspect ratio
+      camera.left = -containerRatio;
+      camera.right = containerRatio;
+      camera.top = 1;
+      camera.bottom = -1;
+      camera.updateProjectionMatrix();
+      
       uniforms.u_resolution.value.set(width, height);
     }
 
