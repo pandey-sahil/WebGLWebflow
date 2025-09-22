@@ -902,8 +902,6 @@ if (document.readyState !== "loading") {
 
 
 
-
-
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 Footer Grid Distortion Effect (Based on webgl-grid-anime)
@@ -1000,17 +998,30 @@ function initFooterBulgeEffect() {
         vec2 gridUV = floor(vUv * gridScale) / gridScale;
         vec2 centerOfPixel = gridUV + vec2(0.5) / gridScale;
 
+        // Grid-based distortion (original effect)
         vec2 mouseDir = u_mouse - u_prevMouse;
         vec2 pixelDir = centerOfPixel - u_mouse;
         float distance = length(pixelDir);
         float strength = smoothstep(0.3, 0.0, distance);
 
         vec2 uvOffset = strength * -mouseDir * u_distortionAmount;
-        vec2 uv = vUv - uvOffset;
+        
+        // Add bulge effect
+        vec2 bulgeDir = vUv - u_mouse;
+        float bulgeDist = length(bulgeDir);
+        float bulgeStrength = smoothstep(0.4, 0.0, bulgeDist) * u_aberrationIntensity;
+        
+        // Bulge distortion - push pixels away from mouse
+        vec2 bulgeOffset = bulgeDir * bulgeStrength * 0.15 * exp(-6.0 * bulgeDist * bulgeDist);
+        
+        // Combine both effects
+        vec2 uv = vUv - uvOffset + bulgeOffset;
 
-        vec4 colorR = texture2D(u_texture, uv + vec2(strength * u_aberrationIntensity * u_aberrationStrength, 0.0));
+        // Chromatic aberration with both effects
+        float totalStrength = max(strength, bulgeStrength);
+        vec4 colorR = texture2D(u_texture, uv + vec2(totalStrength * u_aberrationIntensity * u_aberrationStrength, 0.0));
         vec4 colorG = texture2D(u_texture, uv);
-        vec4 colorB = texture2D(u_texture, uv - vec2(strength * u_aberrationIntensity * u_aberrationStrength, 0.0));
+        vec4 colorB = texture2D(u_texture, uv - vec2(totalStrength * u_aberrationIntensity * u_aberrationStrength, 0.0));
 
         gl_FragColor = vec4(colorR.r, colorG.g, colorB.b, 1.0);
       }
