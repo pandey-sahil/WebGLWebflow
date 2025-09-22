@@ -128,15 +128,17 @@ function initWebGLDistortion(container) {
       if (isWithinImageBounds(greenUv)) alpha = max(alpha, sampleLogoExtended(greenUv).a);
       if (isWithinImageBounds(blueUv)) alpha = max(alpha, sampleLogoExtended(blueUv).a);
       if (isWithinImageBounds(distortedUv)) alpha = max(alpha, centerSample.a);
-      if (alpha < 0.01) { gl_FragColor = vec4(0.0); return; }
+      
+      // Early exit for transparent areas
+      if (alpha < 0.01) { 
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0); 
+        return; 
+      }
 
       vec3 color = vec3(r, g, b);
 
       vec3 glowColor = color * (1.0 + pow(flowMagnitude, 2.2) * 0.05);
       color = mix(color, glowColor, smoothstep(0.05, 0.3, flowMagnitude) * 0.2);
-
-      float totalBrightness = r + g + b;
-      if (totalBrightness < 0.05 && isWithinImageBounds(distortedUv)) color = centerSample.rgb;
 
       vec4 currentColor = vec4(color, alpha);
       if (!uIsFirstFrame) {
@@ -148,8 +150,8 @@ function initWebGLDistortion(container) {
         currentColor = vec4(blendedColor, blendedAlpha);
       }
 
-      float vignette = smoothstep(0.9, 0.6, length(vUv-0.5));
-      currentColor.rgb *= mix(1.0, 0.95, vignette * (1.0-flowMagnitude));
+      float vignette = smoothstep(0.95, 0.7, length(vUv-0.5));
+      currentColor.rgb *= mix(1.0, 0.98, vignette * (1.0-flowMagnitude));
 
       currentColor.rgb = clamp(currentColor.rgb, 0.0, 1.0);
       gl_FragColor = currentColor;
