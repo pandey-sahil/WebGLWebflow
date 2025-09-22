@@ -900,7 +900,6 @@ if (document.readyState !== "loading") {
 
 
 
-
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 Footer Grid Distortion Effect (Based on webgl-grid-anime)
@@ -1040,7 +1039,6 @@ function initFooterBulgeEffect() {
     const mesh = new THREE.Mesh(geometry, material);
     
     // Calculate initial cover scaling
-    const containerRatio = containerWidth / containerHeight;
     let scaleX, scaleY;
     
     if (containerRatio > imgRatio) {
