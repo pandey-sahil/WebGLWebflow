@@ -1,16 +1,16 @@
-import * as THREE from "three";
+import * as THREE from "three"
 
 function initWebGLDistortion(container) {
-  const canvas = container.querySelector("[webgl-distorted-canvas]");
-  const image = container.querySelector("[data-distorted-image]");
-  if (!canvas || !image) return;
+  const canvas = container.querySelector("[webgl-distorted-canvas]")
+  const image = container.querySelector("[data-distorted-image]")
+  if (!canvas || !image) return
 
   // ==== SETTINGS ====
   const settings = {
     falloff: 0.12,
     alpha: 0.97,
     dissipation: 0.95,
-    distortionStrength: parseFloat(container.dataset.distortionStrength) || 0.08,
+    distortionStrength: Number.parseFloat(container.dataset.distortionStrength) || 0.08,
     chromaticAberration: 0.0035,
     chromaticSpread: 0.85,
     velocityScale: 0.6,
@@ -19,7 +19,7 @@ function initWebGLDistortion(container) {
     motionBlurStrength: 0.45,
     motionBlurDecay: 0.9,
     motionBlurThreshold: 0.5,
-  };
+  }
 
   // ==== SHADERS ====
   const vertexShader = `
@@ -28,7 +28,7 @@ function initWebGLDistortion(container) {
       vUv = uv;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
-  `;
+  `
 
   const flowmapFragment = `
     uniform vec2 uMouse;
@@ -61,7 +61,7 @@ function initWebGLDistortion(container) {
 
       gl_FragColor = color;
     }
-  `;
+  `
 
   const distortionFragment = `
     uniform sampler2D uLogo;
@@ -81,21 +81,6 @@ function initWebGLDistortion(container) {
 
     varying vec2 vUv;
     precision mediump float;
-
-    float rand(vec2 co){
-      return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-    }
-
-    float noise(vec2 uv){
-      vec2 i = floor(uv*256.0);
-      vec2 f = fract(uv*256.0);
-      float a = rand(i);
-      float b = rand(i + vec2(1.0,0.0));
-      float c = rand(i + vec2(0.0,1.0));
-      float d = rand(i + vec2(1.0,1.0));
-      vec2 u = f*f*(3.0-2.0*f);
-      return mix(a,b,u.x) + (c-a)*u.y*(1.0-u.x) + (d-b)*u.x*u.y;
-    }
 
     vec2 canvasToImageUV(vec2 uv) {
       vec2 centeredUv = (uv - 0.5);
@@ -147,15 +132,12 @@ function initWebGLDistortion(container) {
 
       vec3 color = vec3(r, g, b);
 
-      // Flow-dependent glow (damped for neutral look)
-      vec3 glowColor = color * (1.0 + pow(flowMagnitude, 2.2) * 0.15);
-      color = mix(color, glowColor, smoothstep(0.05, 0.3, flowMagnitude) * 0.5);
+      vec3 glowColor = color * (1.0 + pow(flowMagnitude, 2.2) * 0.05);
+      color = mix(color, glowColor, smoothstep(0.05, 0.3, flowMagnitude) * 0.2);
 
-      // Color correction
       float totalBrightness = r + g + b;
       if (totalBrightness < 0.05 && isWithinImageBounds(distortedUv)) color = centerSample.rgb;
 
-      // Motion blur
       vec4 currentColor = vec4(color, alpha);
       if (!uIsFirstFrame) {
         vec4 previousColor = texture2D(uPreviousFrame, uv);
@@ -166,122 +148,182 @@ function initWebGLDistortion(container) {
         currentColor = vec4(blendedColor, blendedAlpha);
       }
 
-      // Vignette
-      float vignette = smoothstep(0.8, 0.5, length(vUv-0.5));
-      currentColor.rgb *= mix(1.0, 0.85, vignette * (1.0-flowMagnitude));
+      float vignette = smoothstep(0.9, 0.6, length(vUv-0.5));
+      currentColor.rgb *= mix(1.0, 0.95, vignette * (1.0-flowMagnitude));
 
-      // Procedural noise
-      float n = (noise(uv*10.0 + uTime*0.1)-0.5)*0.02;
-      currentColor.rgb += n;
       currentColor.rgb = clamp(currentColor.rgb, 0.0, 1.0);
       gl_FragColor = currentColor;
     }
-  `;
+  `
 
   // ==== CORE ====
-  const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
-  renderer.setClearColor(0x000000, 0);
-  renderer.autoClear = true;
+  const scene = new THREE.Scene()
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false })
+  renderer.setClearColor(0x000000, 0)
+  renderer.autoClear = true
 
-  const mouse = { current: new THREE.Vector2(-1,-1), target: new THREE.Vector2(-1,-1), velocity: new THREE.Vector2(), last: new THREE.Vector2(-1,-1), smooth: new THREE.Vector2() };
-  let flowmapA, flowmapB, displayA, displayB, mesh, isFirstFrame = true;
-  let flowmapMat, distortionMat, finalMat;
+  const mouse = {
+    current: new THREE.Vector2(-1, -1),
+    target: new THREE.Vector2(-1, -1),
+    velocity: new THREE.Vector2(),
+    last: new THREE.Vector2(-1, -1),
+    smooth: new THREE.Vector2(),
+  }
+  let flowmapA,
+    flowmapB,
+    displayA,
+    displayB,
+    mesh,
+    isFirstFrame = true
+  let flowmapMat, distortionMat, finalMat
 
-  function createRT(w, h){
-    const type = renderer.capabilities.isWebGL2 ? THREE.HalfFloatType : THREE.UnsignedByteType;
-    return new THREE.WebGLRenderTarget(w,h,{ minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat, type });
+  function createRT(w, h) {
+    const type = renderer.capabilities.isWebGL2 ? THREE.HalfFloatType : THREE.UnsignedByteType
+    return new THREE.WebGLRenderTarget(w, h, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat,
+      type,
+    })
   }
 
-  function setup(imageTex){
-    flowmapMat = new THREE.ShaderMaterial({ vertexShader, fragmentShader: flowmapFragment, uniforms: {
-      uMouse:{value:mouse.current}, uVelocity:{value:mouse.velocity}, uResolution:{value:new THREE.Vector2()}, uFalloff:{value:settings.falloff},
-      uAlpha:{value:settings.alpha}, uDissipation:{value:settings.dissipation}, uAspect:{value:1}, uTexture:{value:null}, uTime:{value:0}
-    }});
-    distortionMat = new THREE.ShaderMaterial({ vertexShader, fragmentShader: distortionFragment, transparent:true, depthTest:false, depthWrite:false, uniforms: {
-      uLogo:{value:imageTex}, uFlowmap:{value:null}, uPreviousFrame:{value:null},
-      uImageScale:{value:new THREE.Vector2(1,1)}, uImageOffset:{value:new THREE.Vector2(0,0)},
-      uDistortionStrength:{value:settings.distortionStrength}, uChromaticAberration:{value:settings.chromaticAberration},
-      uChromaticSpread:{value:settings.chromaticSpread}, uResolution:{value:new THREE.Vector2()},
-      uMotionBlurStrength:{value:settings.motionBlurStrength}, uMotionBlurDecay:{value:settings.motionBlurDecay},
-      uMotionBlurThreshold:{value:settings.motionBlurThreshold}, uIsFirstFrame:{value:true}, uTime:{value:0}
-    }});
-    finalMat = new THREE.MeshBasicMaterial({ map:null });
+  function setup(imageTex) {
+    flowmapMat = new THREE.ShaderMaterial({
+      vertexShader,
+      fragmentShader: flowmapFragment,
+      uniforms: {
+        uMouse: { value: mouse.current },
+        uVelocity: { value: mouse.velocity },
+        uResolution: { value: new THREE.Vector2() },
+        uFalloff: { value: settings.falloff },
+        uAlpha: { value: settings.alpha },
+        uDissipation: { value: settings.dissipation },
+        uAspect: { value: 1 },
+        uTexture: { value: null },
+        uTime: { value: 0 },
+      },
+    })
 
-    const w=Math.min(container.clientWidth,512), h=Math.min(container.clientHeight,512);
-    flowmapA=createRT(256,256); flowmapB=createRT(256,256);
-    displayA=createRT(w,h); displayB=createRT(w,h);
+    distortionMat = new THREE.ShaderMaterial({
+      vertexShader,
+      fragmentShader: distortionFragment,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      uniforms: {
+        uLogo: { value: imageTex },
+        uFlowmap: { value: null },
+        uPreviousFrame: { value: null },
+        uImageScale: { value: new THREE.Vector2(1, 1) },
+        uImageOffset: { value: new THREE.Vector2(0, 0) },
+        uDistortionStrength: { value: settings.distortionStrength },
+        uChromaticAberration: { value: settings.chromaticAberration },
+        uChromaticSpread: { value: settings.chromaticSpread },
+        uResolution: { value: new THREE.Vector2() },
+        uMotionBlurStrength: { value: settings.motionBlurStrength },
+        uMotionBlurDecay: { value: settings.motionBlurDecay },
+        uMotionBlurThreshold: { value: settings.motionBlurThreshold },
+        uIsFirstFrame: { value: true },
+        uTime: { value: 0 },
+      },
+    })
 
-    mesh = new THREE.Mesh(new THREE.PlaneGeometry(2,2), flowmapMat);
+    finalMat = new THREE.MeshBasicMaterial({ map: null })
 
-    container.addEventListener("mousemove", e=>{
-      const r=container.getBoundingClientRect();
-      mouse.target.set((e.clientX-r.left)/r.width,1-(e.clientY-r.top)/r.height);
-    });
-    container.addEventListener("mouseenter", e=>{
-      const r=container.getBoundingClientRect();
-      const x=(e.clientX-r.left)/r.width, y=1-(e.clientY-r.top)/r.height;
-      mouse.current.set(x,y); mouse.target.set(x,y); mouse.last.set(x,y);
-    });
-    container.addEventListener("mouseleave",()=>mouse.target.set(-1,-1));
-    window.addEventListener("resize",onResize);
+    const w = Math.min(container.clientWidth, 512),
+      h = Math.min(container.clientHeight, 512)
+    flowmapA = createRT(256, 256)
+    flowmapB = createRT(256, 256)
+    displayA = createRT(w, h)
+    displayB = createRT(w, h)
 
-    onResize(); animate();
+    mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), flowmapMat)
+
+    container.addEventListener("mousemove", (e) => {
+      const r = container.getBoundingClientRect()
+      mouse.target.set((e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height)
+    })
+
+    container.addEventListener("mouseenter", (e) => {
+      const r = container.getBoundingClientRect()
+      const x = (e.clientX - r.left) / r.width,
+        y = 1 - (e.clientY - r.top) / r.height
+      mouse.current.set(x, y)
+      mouse.target.set(x, y)
+      mouse.last.set(x, y)
+    })
+
+    container.addEventListener("mouseleave", () => mouse.target.set(-1, -1))
+    window.addEventListener("resize", onResize)
+
+    onResize()
+    animate()
   }
 
-  function onResize(){
-    const {clientWidth:w, clientHeight:h} = container;
-    renderer.setSize(w,h); renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-    flowmapMat.uniforms.uResolution.value.set(w,h); flowmapMat.uniforms.uAspect.value=w/h;
-    distortionMat.uniforms.uResolution.value.set(w,h);
-    displayA=createRT(w,h); displayB=createRT(w,h);
+  function onResize() {
+    const { clientWidth: w, clientHeight: h } = container
+    renderer.setSize(w, h)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    flowmapMat.uniforms.uResolution.value.set(w, h)
+    flowmapMat.uniforms.uAspect.value = w / h
+    distortionMat.uniforms.uResolution.value.set(w, h)
+    displayA = createRT(w, h)
+    displayB = createRT(w, h)
   }
 
-  function updateMouse(){
-    mouse.last.copy(mouse.current);
-    mouse.current.lerp(mouse.target,0.7);
-    const d=new THREE.Vector2(mouse.current.x-mouse.last.x, mouse.current.y-mouse.last.y).multiplyScalar(80);
-    mouse.velocity.lerp(d,0.6).multiplyScalar(settings.velocityDamping);
-    mouse.smooth.lerp(mouse.velocity,0.3);
+  function updateMouse() {
+    mouse.last.copy(mouse.current)
+    mouse.current.lerp(mouse.target, 0.7)
+    const d = new THREE.Vector2(mouse.current.x - mouse.last.x, mouse.current.y - mouse.last.y).multiplyScalar(80)
+    mouse.velocity.lerp(d, 0.6).multiplyScalar(settings.velocityDamping)
+    mouse.smooth.lerp(mouse.velocity, 0.3)
   }
 
-  function render(){
-    updateMouse();
-    const t=performance.now()*0.001;
-    flowmapMat.uniforms.uTime.value=t; distortionMat.uniforms.uTime.value=t;
-    flowmapMat.uniforms.uMouse.value.copy(mouse.current);
-    flowmapMat.uniforms.uVelocity.value.copy(mouse.smooth).multiplyScalar(settings.velocityScale);
+  function render() {
+    updateMouse()
+    const t = performance.now() * 0.001
+    flowmapMat.uniforms.uTime.value = t
+    distortionMat.uniforms.uTime.value = t
+    flowmapMat.uniforms.uMouse.value.copy(mouse.current)
+    flowmapMat.uniforms.uVelocity.value.copy(mouse.smooth).multiplyScalar(settings.velocityScale)
 
-    mesh.material=flowmapMat; flowmapMat.uniforms.uTexture.value=flowmapB.texture;
-    renderer.setRenderTarget(flowmapA); renderer.render(mesh,camera);
+    mesh.material = flowmapMat
+    flowmapMat.uniforms.uTexture.value = flowmapB.texture
+    renderer.setRenderTarget(flowmapA)
+    renderer.render(mesh, camera)
 
-    mesh.material=distortionMat;
-    distortionMat.uniforms.uFlowmap.value=flowmapA.texture;
-    distortionMat.uniforms.uPreviousFrame.value=displayB.texture;
-    distortionMat.uniforms.uIsFirstFrame.value=isFirstFrame;
-    renderer.setRenderTarget(displayA); renderer.render(mesh,camera);
+    mesh.material = distortionMat
+    distortionMat.uniforms.uFlowmap.value = flowmapA.texture
+    distortionMat.uniforms.uPreviousFrame.value = displayB.texture
+    distortionMat.uniforms.uIsFirstFrame.value = isFirstFrame
+    renderer.setRenderTarget(displayA)
+    renderer.render(mesh, camera)
 
-    // Option A: clean final blit
-    mesh.material=finalMat; finalMat.map=displayA.texture;
-    renderer.setRenderTarget(null); renderer.render(mesh,camera);
-
-    [flowmapA,flowmapB]=[flowmapB,flowmapA];
-    [displayA,displayB]=[displayB,displayA];
-    isFirstFrame=false;
+    mesh.material = finalMat
+    finalMat.map = displayA.texture
+    renderer.setRenderTarget(null)
+    renderer.render(mesh, camera)
+    ;[flowmapA, flowmapB] = [flowmapB, flowmapA]
+    ;[displayA, displayB] = [displayB, displayA]
+    isFirstFrame = false
   }
 
-  function animate(){ render(); requestAnimationFrame(animate); }
+  function animate() {
+    render()
+    requestAnimationFrame(animate)
+  }
 
-  new THREE.TextureLoader().load(image.src, tex=>{
-    tex.minFilter=THREE.LinearFilter; tex.magFilter=THREE.LinearFilter; tex.wrapS=tex.wrapT=THREE.ClampToEdgeWrapping;
-    setup(tex);
-  });
+  new THREE.TextureLoader().load(image.src, (tex) => {
+    tex.minFilter = THREE.LinearFilter
+    tex.magFilter = THREE.LinearFilter
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping
+    setup(tex)
+  })
 }
 
-// ==== INIT ALL CONTAINERS ====
-document.addEventListener("DOMContentLoaded", ()=>{
-  document.querySelectorAll("[data-webgl-container]").forEach(container=>{
-    initWebGLDistortion(container);
-  });
-});
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-webgl-container]").forEach((container) => {
+    initWebGLDistortion(container)
+  })
+})
