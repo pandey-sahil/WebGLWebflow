@@ -9,7 +9,7 @@ function initWebGLDistortion(container) {
   const settings = {
     falloff: 0.12,
     alpha: 0.97,
-    dissipation: 0.965,
+    dissipation: 0.95,
     distortionStrength: parseFloat(container.dataset.distortionStrength) || 0.08,
     chromaticAberration: 0.0035,
     chromaticSpread: 0.85,
@@ -173,7 +173,7 @@ function initWebGLDistortion(container) {
       // Procedural noise
       float n = (noise(uv*10.0 + uTime*0.1)-0.5)*0.02;
       currentColor.rgb += n;
-
+      currentColor.rgb = clamp(currentColor.rgb, 0.0, 1.0);
       gl_FragColor = currentColor;
     }
   `;
