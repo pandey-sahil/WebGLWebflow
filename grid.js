@@ -2,6 +2,11 @@ import * as THREE from 'three';
 
 // Canvas + renderer
 const canvas = document.querySelector('.tunnelcanvas');
+
+if (!canvas) {
+  console.warn('Tunnel canvas not found — skipping Three.js setup');
+  return; // exit early
+}
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
