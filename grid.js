@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-
+function initTunnel() {
 // Canvas + renderer
 const canvas = document.querySelector('.tunnelcanvas');
 
@@ -142,3 +142,6 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+}
+
+initTunnel();
