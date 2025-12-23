@@ -140,14 +140,23 @@ window.WebGLEffects = (function () {
   }
 
   function initTabEffects(tab) {
+    console.log("Initializing effects for tab:", tab);
+
     if (tab === "Tab 1") {
-      setTimeout(initBulgeEffects, 50);
+      setTimeout(() => {
+        initBulgeEffects();
+        needsRender = true;
+      }, 100);
     } else if (tab === "Tab 2") {
-      const listEffect = HoverListEffect(renderer);
-      if (listEffect) {
-        listEffect.type = "list-hover";
-        effects.push(listEffect);
-      }
+      setTimeout(() => {
+        const listEffect = HoverListEffect(renderer);
+        if (listEffect) {
+          listEffect.type = "list-hover";
+          effects.push(listEffect);
+          console.log("List effect added, total effects:", effects.length);
+        }
+        needsRender = true;
+      }, 100);
     }
   }
 
@@ -480,6 +489,8 @@ function HoverListEffect(globalRenderer) {
     if (!textures[idx]) return;
 
     link.addEventListener("mouseenter", () => {
+      console.log("Mouse entered link", idx);
+      
       uniforms.uPrevTexture.value = uniforms.uTexture.value;
       uniforms.uTexture.value = textures[idx];
       uniforms.uAlpha.value = 1.0;
@@ -494,12 +505,20 @@ function HoverListEffect(globalRenderer) {
         const aspect = img.naturalWidth / img.naturalHeight;
         mesh.scale.set(SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize, 1);
       }
-      window.WebGLEffects.requestRender();
+      
+      mouseDirty = true;
+      if (window.WebGLEffects) {
+        window.WebGLEffects.requestRender();
+      }
     });
 
     link.addEventListener("mouseleave", () => {
+      console.log("Mouse left link", idx);
       fadingOut = true;
-      window.WebGLEffects.requestRender();
+      mouseDirty = true;
+      if (window.WebGLEffects) {
+        window.WebGLEffects.requestRender();
+      }
     });
   });
 
@@ -513,7 +532,18 @@ function HoverListEffect(globalRenderer) {
     
     if (!mouseDirty) {
       mouseDirty = true;
-      window.WebGLEffects.requestRender();
+      if (window.WebGLEffects) {
+        window.WebGLEffects.requestRender();
+      }
+    }
+    
+    // Update mesh position directly for following cursor
+    if (currentIndex >= 0 && uniforms.uAlpha.value > 0) {
+      const containerWidth = window.innerWidth;
+      const containerHeight = window.innerHeight;
+      
+      mesh.position.x = (e.clientX - containerWidth / 2);
+      mesh.position.y = -(e.clientY - containerHeight / 2);
     }
   });
 
@@ -542,15 +572,22 @@ function HoverListEffect(globalRenderer) {
 
     if (transitioning && uniforms.uMixFactor.value < 1.0) {
       uniforms.uMixFactor.value += SETTINGS.transition.speed;
-      window.WebGLEffects.requestRender();
+      if (window.WebGLEffects) {
+        window.WebGLEffects.requestRender();
+      }
+    } else if (transitioning) {
+      transitioning = false;
     }
 
     if (fadingOut) {
       uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
       if (uniforms.uAlpha.value <= 0) {
         uniforms.uAlpha.value = 0;
+        fadingOut = false;
       } else {
-        window.WebGLEffects.requestRender();
+        if (window.WebGLEffects) {
+          window.WebGLEffects.requestRender();
+        }
       }
     }
   }
