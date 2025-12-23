@@ -21,12 +21,8 @@ window.WebGLEffects = (function () {
   let animationId = null;
   let scrollBlurEffect = null;
      let active = true;
-  let needsRender = true;
+  let window.WebGLEffects?.requestRender();
 
-  function getActiveTabFromDOM() {
-    const el = document.querySelector(".w-tab-link.w--current");
-    return el?.getAttribute("data-w-tab") || null;
-  }
 
   function init() {
     if (REDUCED_MOTION) return;
@@ -71,7 +67,7 @@ window.WebGLEffects = (function () {
     initTabListener();
 
     active = true;
-    needsRender = true;
+    window.WebGLEffects?.requestRender();
 
     animate();
     window.addEventListener("resize", onResize);
@@ -94,6 +90,10 @@ window.WebGLEffects = (function () {
       attributeFilter: ["class"],
     });
   }
+function getActiveTabFromDOM() {
+  const el = document.querySelector(".w-tab-link.w--current");
+  return el?.getAttribute("data-w-tab") || null;
+}
 
   function switchTab(tab) {
     if (tab === currentTab) return;
@@ -111,7 +111,7 @@ window.WebGLEffects = (function () {
       currentTab = tab;
       initTabEffects(tab);
       active = true;
-      needsRender = true;
+      window.WebGLEffects?.requestRender();
     });
   }
 
@@ -173,7 +173,7 @@ window.WebGLEffects = (function () {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
 
-    needsRender = true;
+    window.WebGLEffects?.requestRender();
   }
 
   function addEffect(effectFn) {
@@ -214,6 +214,10 @@ window.WebGLEffects = (function () {
     getCurrentTab: () => currentTab,
     initTabEffects,
     scrollBlurEffect: () => scrollBlurEffect,
+  requestRender: () => {
+    needsRender = true;
+  }
+};
   };
 })();
 
@@ -312,7 +316,7 @@ function initScrollBlurEffect() {
     "scroll",
     () => {
       updateScroll();
-      needsRender = true;
+      window.WebGLEffects?.requestRender();
     },
     { passive: true }
   );
@@ -612,7 +616,7 @@ function HoverListEffect(globalRenderer) {
     const rect = wrapper.getBoundingClientRect();
     targetX = e.clientX - rect.left;
     targetY = e.clientY - rect.top;
-    needsRender = true;
+    window.WebGLEffects?.requestRender();
   });
 
   // RESIZE HANDLER
@@ -883,18 +887,6 @@ function cleanupBulgeEffects() {
   }
 }
 
-/*
-☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-Initialize on load
-☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
-*/
-document.addEventListener("DOMContentLoaded", () => {
-  const tab = getActiveTabFromDOM();
-  if (!tab) return;
-
-  console.log("Initial tab detected:", tab);
-  window.WebGLEffects.switchTab(tab);
-});
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
