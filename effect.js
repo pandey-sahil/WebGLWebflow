@@ -66,7 +66,7 @@ window.WebGLEffects = (function () {
     initTabListener();
 
     active = true;
-    window.WebGLEffects?.requestRender();
+    needsRender = true;
 
     animate();
     window.addEventListener("resize", onResize);
@@ -101,7 +101,7 @@ function getActiveTabFromDOM() {
 
     // stop everything
     active = false;
-    window.WebGLEffects?.requestRender();
+    needsRender = true;
 
     cleanupEffects(currentTab);
 
@@ -110,7 +110,7 @@ function getActiveTabFromDOM() {
       currentTab = tab;
       initTabEffects(tab);
       active = true;
-      window.WebGLEffects?.requestRender();
+      needsRender = true;
     });
   }
 
@@ -172,7 +172,7 @@ function getActiveTabFromDOM() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
 
-    window.WebGLEffects?.requestRender();
+    needsRender = true;
   }
 
   function addEffect(effectFn) {
@@ -314,7 +314,7 @@ function initScrollBlurEffect() {
     "scroll",
     () => {
       updateScroll();
-      window.WebGLEffects?.requestRender();
+      needsRender = true;
     },
     { passive: true }
   );
@@ -614,7 +614,7 @@ function HoverListEffect(globalRenderer) {
     const rect = wrapper.getBoundingClientRect();
     targetX = e.clientX - rect.left;
     targetY = e.clientY - rect.top;
-    window.WebGLEffects?.requestRender();
+    needsRender = true;
   });
 
   // RESIZE HANDLER
