@@ -172,12 +172,11 @@ window.WebGLEffects = (function () {
 
     if (!active) return;
 
-    // Frame rate limiting - but always render if effects are active
-    const elapsed = time - lastFrameTime;
-    const hasActiveEffects = effects.length > 0 || (scrollBlurEffect && scrollBlurEffect.scene);
+    // Always render scroll blur effect if it exists (it's lightweight)
+    const shouldRender = needsRender || effects.length > 0 || 
+                        (scrollBlurEffect && scrollBlurEffect.scene);
     
-    if (elapsed < FRAME_INTERVAL && !needsRender && !hasActiveEffects) return;
-    lastFrameTime = time;
+    if (!shouldRender) return;
 
     renderer.clear();
 
@@ -193,10 +192,8 @@ window.WebGLEffects = (function () {
       }
     });
 
-    // Keep rendering if there are active effects
-    if (!hasActiveEffects) {
-      needsRender = false;
-    }
+    needsRender = false;
+    lastFrameTime = time;
   }
 
   init();
@@ -262,7 +259,9 @@ function initScrollBlurEffect() {
       finalColor += shimmer;
 
       float reveal = smoothstep(0.3, 0.7, 1.0 - blurAmount + n * 0.1);
-      gl_FragColor = vec4(finalColor, reveal * 0.4);
+      
+      // Reduce opacity significantly to prevent blocking content
+      gl_FragColor = vec4(finalColor, reveal * 0.15);
     }
   `;
 
@@ -328,7 +327,7 @@ function initScrollBlurEffect() {
     },
   };
 
-  window.WebGLEffects.scrollBlurEffect = effect;
+  // Don't store on window.WebGLEffects, just return it
   return effect;
 }
 
