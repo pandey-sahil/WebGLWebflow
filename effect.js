@@ -58,14 +58,12 @@ window.WebGLEffects = (function () {
     );
     camera.position.z = 5;
 
-    initScrollBlurEffect();
+    // Initialize scroll blur and store reference directly
+    scrollBlurEffect = initScrollBlurEffect();
     initTabListener();
 
     active = true;
     needsRender = true;
-
-    // Store scroll blur effect reference
-    scrollBlurEffect = window.WebGLEffects.scrollBlurEffect;
 
     animate();
     
