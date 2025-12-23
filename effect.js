@@ -203,7 +203,6 @@ function getActiveTabFromDOM() {
 
   init();
 
-  // Expose the renderer so effects can use it
   return {
     addEffect,
     renderer,
@@ -213,12 +212,12 @@ function getActiveTabFromDOM() {
     getCurrentTab: () => currentTab,
     initTabEffects,
     scrollBlurEffect: () => scrollBlurEffect,
-  requestRender: () => {
-    needsRender = true;
-  }
-};
+    requestRender: () => {
+      needsRender = true;
+    }
   };
 })();
+
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
