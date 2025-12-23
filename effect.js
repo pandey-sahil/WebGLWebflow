@@ -17,6 +17,10 @@ window.WebGLEffects = (function () {
   let currentTab = "Tab 1"; // Default to grid view
   let animationId = null;
   let scrollBlurEffect = null;
+  function getActiveTabFromDOM() {
+    const el = document.querySelector(".w-tab-link.w--current");
+    return el?.getAttribute("data-w-tab") || null;
+  }
 
   function init() {
     if (REDUCED_MOTION) return;
@@ -68,46 +72,41 @@ window.WebGLEffects = (function () {
   }
 
   function initTabListener() {
-    // Listen for tab clicks
-    document.addEventListener("click", (e) => {
-      const tabLink = e.target.closest("[data-w-tab]");
-      if (tabLink) {
-        const newTab = tabLink.getAttribute("data-w-tab");
-        if (newTab !== currentTab) {
-          console.log("Tab changed from", currentTab, "to", newTab);
-          switchTab(newTab);
-        }
-      }
+    let current = getActiveTabFromDOM();
+
+    const observer = new MutationObserver(() => {
+      const next = getActiveTabFromDOM();
+      if (!next || next === current) return;
+
+      current = next;
+      window.WebGLEffects.switchTab(next);
     });
 
-    // Also check for initial active tab
-    const activeTab = document.querySelector(".w-tab-link.w--current");
-    if (activeTab) {
-      currentTab = activeTab.getAttribute("data-w-tab") || "Tab 1";
-      console.log("Initial tab:", currentTab);
-    }
-
-    // Also listen for Webflow's tab change events
-    document.addEventListener("w-tab-change", (e) => {
-      console.log("Webflow tab change detected", e.detail);
-      if (e.detail && e.detail.tab !== currentTab) {
-        switchTab(e.detail.tab);
-      }
+    observer.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
     });
   }
 
-  function switchTab(newTab) {
-    if (newTab === currentTab) return;
+  function switchTab(tab) {
+    if (tab === currentTab) return;
 
+    console.log("Switch →", tab);
+
+    // stop everything
     active = false;
+    needsRender = false;
+
     cleanupEffects(currentTab);
 
-    setTimeout(() => {
-      currentTab = newTab;
+    // allow Webflow layout to settle
+    requestAnimationFrame(() => {
+      currentTab = tab;
+      initTabEffects(tab);
       active = true;
       needsRender = true;
-      initTabEffects(newTab);
-    }, 150);
+    });
   }
 
   function cleanupEffects(tab) {
@@ -345,10 +344,7 @@ function HoverListEffect(globalRenderer) {
   if (IS_MOBILE || REDUCED_MOTION) return null;
 
   // Only initialize if we're on the list tab
-  if (window.WebGLEffects.getCurrentTab() !== "Tab 2") {
-    console.log("Skipping list effect - wrong tab");
-    return null;
-  }
+  console.log("Active tab:", getActiveTabFromDOM());
 
   // Look for the actual tab content div that contains the list items
   const wrapper =
@@ -887,49 +883,12 @@ Initialize on load
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */
 document.addEventListener("DOMContentLoaded", () => {
-  setTimeout(() => {
-    console.log("DOMContentLoaded init");
+  const tab = getActiveTabFromDOM();
+  if (!tab) return;
 
-    // Initialize effects based on current tab
-    const currentTab = window.WebGLEffects.getCurrentTab();
-    console.log("Current tab on load:", currentTab);
-
-    window.WebGLEffects.initTabEffects(currentTab);
-
-    // Fallback: If no effects were initialized, try again with Tab 2
-    setTimeout(() => {
-      if (window.WebGLEffects.renderer) {
-        const hasEffects =
-          window.WebGLEffects.renderer.info?.render?.triangles > 0;
-        if (!hasEffects) {
-          console.log("No effects detected, forcing Tab 2 initialization");
-          window.WebGLEffects.initTabEffects("Tab 2");
-        }
-      }
-    }, 500);
-  }, 100);
+  console.log("Initial tab detected:", tab);
+  window.WebGLEffects.switchTab(tab);
 });
-
-if (document.readyState !== "loading") {
-  setTimeout(() => {
-    console.log("Page already loaded, init immediately");
-
-    // Initialize effects based on current tab
-    const currentTab = window.WebGLEffects.getCurrentTab();
-    console.log("Current tab on load:", currentTab);
-
-    window.WebGLEffects.initTabEffects(currentTab);
-
-    // Fallback: If no effects were initialized, try again with Tab 2
-    setTimeout(() => {
-      if (window.WebGLEffects.renderer) {
-        console.log("Checking if effects are running...");
-        // Force Tab 2 initialization if screen is still black
-        window.WebGLEffects.initTabEffects("Tab 2");
-      }
-    }, 500);
-  }, 100);
-}
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
