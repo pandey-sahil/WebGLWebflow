@@ -64,6 +64,9 @@ window.WebGLEffects = (function () {
     active = true;
     needsRender = true;
 
+    // Store scroll blur effect reference
+    scrollBlurEffect = window.WebGLEffects.scrollBlurEffect;
+
     animate();
     
     // Debounced resize handler
@@ -171,9 +174,11 @@ window.WebGLEffects = (function () {
 
     if (!active) return;
 
-    // Frame rate limiting
+    // Frame rate limiting - but always render if effects are active
     const elapsed = time - lastFrameTime;
-    if (elapsed < FRAME_INTERVAL && !needsRender) return;
+    const hasActiveEffects = effects.length > 0 || (scrollBlurEffect && scrollBlurEffect.scene);
+    
+    if (elapsed < FRAME_INTERVAL && !needsRender && !hasActiveEffects) return;
     lastFrameTime = time;
 
     renderer.clear();
@@ -190,7 +195,10 @@ window.WebGLEffects = (function () {
       }
     });
 
-    needsRender = false;
+    // Keep rendering if there are active effects
+    if (!hasActiveEffects) {
+      needsRender = false;
+    }
   }
 
   init();
@@ -215,7 +223,6 @@ window.WebGLEffects = (function () {
 */
 function initScrollBlurEffect() {
   if (REDUCED_MOTION) return null;
-  if (!window.WebGLEffects) window.WebGLEffects = {};
 
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -298,7 +305,9 @@ function initScrollBlurEffect() {
       window.requestAnimationFrame(updateScroll);
       ticking = true;
     }
-    window.WebGLEffects.requestRender();
+    if (window.WebGLEffects) {
+      window.WebGLEffects.requestRender();
+    }
   }, { passive: true });
 
   const update = (time) => {
@@ -310,7 +319,7 @@ function initScrollBlurEffect() {
   };
   window.addEventListener("resize", resize);
 
-  window.WebGLEffects.scrollBlurEffect = {
+  const effect = {
     scene,
     camera,
     update,
@@ -321,7 +330,8 @@ function initScrollBlurEffect() {
     },
   };
 
-  return window.WebGLEffects.scrollBlurEffect;
+  window.WebGLEffects.scrollBlurEffect = effect;
+  return effect;
 }
 
 /*
