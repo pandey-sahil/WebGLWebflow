@@ -20,9 +20,8 @@ window.WebGLEffects = (function () {
   let currentTab = "Tab 1"; // Default to grid view
   let animationId = null;
   let scrollBlurEffect = null;
-     let active = true;
-  let window.WebGLEffects?.requestRender();
-
+  let active = true;
+  let needsRender = true;
 
   function init() {
     if (REDUCED_MOTION) return;
@@ -102,7 +101,7 @@ function getActiveTabFromDOM() {
 
     // stop everything
     active = false;
-    needsRender = false;
+    window.WebGLEffects?.requestRender();
 
     cleanupEffects(currentTab);
 
@@ -650,12 +649,12 @@ function HoverListEffect(globalRenderer) {
     }
 
     if (fadingOut) {
-      uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
-      if (uniforms.uAlpha.value <= 0) {
-        uniforms.uAlpha.value = 0;
-        needsRender = false;
-      }
-    }
+  uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
+  if (uniforms.uAlpha.value <= 0) {
+    uniforms.uAlpha.value = 0;
+  }
+}
+
   }
 
   // Cleanup function
