@@ -1,3 +1,5 @@
+"use strict";
+
 import * as THREE from "three";
 
 /*
@@ -12,11 +14,15 @@ const REDUCED_MOTION = window.matchMedia(
 ).matches;
 
 window.WebGLEffects = (function () {
+   
   const effects = [];
   let renderer, scene, camera;
   let currentTab = "Tab 1"; // Default to grid view
   let animationId = null;
   let scrollBlurEffect = null;
+     let active = true;
+  let needsRender = true;
+
   function getActiveTabFromDOM() {
     const el = document.querySelector(".w-tab-link.w--current");
     return el?.getAttribute("data-w-tab") || null;
