@@ -1,304 +1,781 @@
-import * as THREE from "three";
+import * as THREE from 'three';
 
-/* =====================================================
-   GLOBAL WEBGL MANAGER (SINGLE RENDERER)
-===================================================== */
-window.WebGLEffects = (() => {
+/*
+=====================================================
+   GLOBAL EFFECT MANAGER WITH TAB SUPPORT
+=====================================================
+*/
+window.WebGLEffects = (function () {
+  const effects = [];
   let renderer, scene, camera;
-  let currentTab = "Tab 1";
-  let raf = null;
-  let activeEffects = [];
-  let needsRender = false;
-
-  const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+  let currentTab = 'Tab 1'; // Default to grid view
+  let animationId = null;
+  let scrollBlurEffect = null;
 
   function init() {
-    renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      antialias: true,
-      powerPreference: "high-performance"
-    });
-
-    renderer.setPixelRatio(DPR);
+    // Shared renderer
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // add class and styling before appending
+    renderer.domElement.classList.add("global-webgl-canvas");
+    renderer.domElement.classList.add("scroll-blur-canvas"); 
     renderer.domElement.style.position = "fixed";
-    renderer.domElement.style.inset = "0";
+    renderer.domElement.style.top = "0";
+    renderer.domElement.style.left = "0";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.zIndex = "1"; // Lower z-index to not interfere with other animations
     renderer.domElement.style.pointerEvents = "none";
-    renderer.domElement.style.zIndex = "1";
     document.body.appendChild(renderer.domElement);
 
+    // Shared scene + camera
     scene = new THREE.Scene();
-
     camera = new THREE.PerspectiveCamera(
       45,
       window.innerWidth / window.innerHeight,
       0.1,
-      1000
+      100
     );
-    camera.position.z = 600;
-
+    camera.position.z = 5;
+    
+    animate();
     window.addEventListener("resize", onResize);
-    document.addEventListener("visibilitychange", onVisibility);
+    
+    // Listen for tab changes
     initTabListener();
-  }
-
-  function onResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    requestRender();
-  }
-
-  function onVisibility() {
-    if (document.hidden) stop();
-    else requestRender();
-  }
-
-  function animate(time) {
-    raf = requestAnimationFrame(animate);
-    activeEffects.forEach(e => e.update?.(time));
-    renderer.render(scene, camera);
-    needsRender = false;
-  }
-
-  function requestRender() {
-    if (!raf) animate();
-    needsRender = true;
-  }
-
-  function stop() {
-    cancelAnimationFrame(raf);
-    raf = null;
-  }
-
-  function clearEffects() {
-    activeEffects.forEach(e => e.dispose?.());
-    activeEffects.length = 0;
-    scene.clear();
-    stop();
-  }
-
-  function initTab(tab) {
-    clearEffects();
-    currentTab = tab;
-
-    if (tab === "Tab 1") {
-      activeEffects.push(initBulgeGrid(scene));
-    }
-
-    if (tab === "Tab 2") {
-      activeEffects.push(initHoverList(scene));
-    }
-
-    requestRender();
+    
+    console.log('Global WebGL renderer initialized with scroll blur');
   }
 
   function initTabListener() {
-    document.addEventListener("click", e => {
-      const tab = e.target.closest("[data-w-tab]");
-      if (!tab) return;
-      const name = tab.getAttribute("data-w-tab");
-      if (name !== currentTab) initTab(name);
+    // Listen for tab clicks
+    document.addEventListener('click', (e) => {
+      const tabLink = e.target.closest('[data-w-tab]');
+      if (tabLink) {
+        const newTab = tabLink.getAttribute('data-w-tab');
+        if (newTab !== currentTab) {
+          console.log('Tab changed from', currentTab, 'to', newTab);
+          switchTab(newTab);
+        }
+      }
     });
 
-    const active = document.querySelector(".w-tab-link.w--current");
-    if (active) initTab(active.getAttribute("data-w-tab"));
+    // Also check for initial active tab
+    const activeTab = document.querySelector('.w-tab-link.w--current');
+    if (activeTab) {
+      currentTab = activeTab.getAttribute('data-w-tab') || 'Tab 1';
+      console.log('Initial tab:', currentTab);
+    }
+
+    // Also listen for Webflow's tab change events
+    document.addEventListener('w-tab-change', (e) => {
+      console.log('Webflow tab change detected', e.detail);
+      if (e.detail && e.detail.tab !== currentTab) {
+        switchTab(e.detail.tab);
+      }
+    });
+  }
+
+  function switchTab(newTab) {
+    const oldTab = currentTab;
+    currentTab = newTab;
+    
+    // Clean up old effects
+    cleanupEffects(oldTab);
+    
+    // Initialize new effects after a short delay to let DOM update
+    setTimeout(() => {
+      initTabEffects(newTab);
+    }, 100);
+  }
+
+  function cleanupEffects(tab) {
+    if (tab === 'Tab 1') {
+      // Clean up bulge effects
+      cleanupBulgeEffects();
+    } else if (tab === 'Tab 2') {
+      // Clean up list effects
+      cleanupListEffects();
+    }
+  }
+
+  function cleanupBulgeEffects() {
+    console.log('Cleaning up bulge effects');
+    const canvases = document.querySelectorAll('.work-canvas');
+    canvases.forEach(canvas => canvas.remove());
+    
+    // Reset image opacity
+    const images = document.querySelectorAll('[webgl-anime="image-hover"] img');
+    images.forEach(img => img.style.opacity = '1');
+  }
+
+  function cleanupListEffects() {
+    console.log('Cleaning up list effects');
+    // Remove list-specific effects from the global effects array
+    for (let i = effects.length - 1; i >= 0; i--) {
+      if (effects[i].type === 'list-hover') {
+        if (effects[i].cleanup) {
+          effects[i].cleanup();
+        }
+        effects.splice(i, 1);
+      }
+    }
+  }
+
+  function initTabEffects(tab) {
+    console.log('Initializing effects for tab:', tab);
+    
+    if (tab === 'Tab 1') {
+      // Initialize bulge effects
+      setTimeout(() => {
+        initBulgeEffects();
+      }, 50);
+    } else if (tab === 'Tab 2') {
+      // Initialize list effects
+      const listEffect = HoverListEffect(renderer);
+      if (listEffect) {
+        listEffect.type = 'list-hover';
+        effects.push(listEffect);
+      }
+    }
+  }
+
+  function onResize() {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
+
+  function addEffect(effectFn) {
+    const effect = effectFn(renderer, scene, camera);
+    if (!effect) return; // gracefully skip if it didn't init
+    effects.push(effect);
+  }
+
+  function animate(time) {
+    animationId = requestAnimationFrame(animate);
+    
+    // Always render scroll blur effect (global background)
+    if (scrollBlurEffect) {
+      scrollBlurEffect.update(time);
+      renderer.setRenderTarget(null);
+      renderer.clear();
+      renderer.render(scrollBlurEffect.scene, scrollBlurEffect.camera);
+    }
+    
+    // Render tab-specific effects on top
+    if (currentTab === 'Tab 2') {
+      // Update and render list effects
+      effects.forEach((e) => {
+        if (e.update) e.update(time);
+        if (e.scene && e.camera && e.type === 'list-hover') {
+          renderer.render(e.scene, e.camera);
+        }
+      });
+    }
   }
 
   init();
 
-  return {
-    requestRender,
-    scene,
-    camera
+  // Expose the renderer so effects can use it
+  return { 
+    addEffect, 
+    renderer, 
+    scene, 
+    camera, 
+    switchTab,
+    getCurrentTab: () => currentTab,
+    initTabEffects,
+    scrollBlurEffect: () => scrollBlurEffect
   };
 })();
 
-/* =====================================================
-   SHARED HELPERS
-===================================================== */
-function loadTexture(src) {
-  return new Promise(resolve => {
-    new THREE.TextureLoader().load(src, tex => {
-      tex.minFilter = THREE.LinearFilter;
-      tex.generateMipmaps = false;
-      resolve(tex);
-    });
-  });
-}
 
-/* =====================================================
-   TAB 2 — HOVER LIST EFFECT (LAZY)
-===================================================== */
-function initHoverList(scene) {
-  const wrapper =
-    document.querySelector('[data-w-tab="Tab 2"]') ||
-    document.querySelector("#tab-list-pane");
+/*
+☰☰☰☰☰☰☰☰☰☰☰☰☰
+Enhanced Hover List Effect Animation
+☰☰☰☰☰☰☰☰☰☰☰☰☰
+*/ 
+function HoverListEffect(globalRenderer) {
+  // Only initialize if we're on the list tab
+  if (window.WebGLEffects.getCurrentTab() !== 'Tab 2') {
+    console.log('Skipping list effect - wrong tab');
+    return null;
+  }
 
-  if (!wrapper) return;
+  // Look for the actual tab content div that contains the list items
+  const wrapper = document.querySelector('#tab-list-pane') || document.querySelector('[data-w-tab="Tab 2"]');
+  if (!wrapper) {
+    console.warn("HoverListEffect: No Tab 2 wrapper found");
+    return null;
+  }
 
-  const geometry = new THREE.PlaneGeometry(1, 1, 20, 20);
-  const uniforms = {
-    uTex: { value: null },
-    uAlpha: { value: 0 },
-    uOffset: { value: new THREE.Vector2() }
+  console.log('Initializing Enhanced HoverListEffect for Tab 2', wrapper);
+
+  // Enhanced settings for smoother following
+  const SETTINGS = {
+    deformation: {
+      strength: 0.00055,  
+      smoothing: 0.05     // Made much smoother (reduced from 0.1)
+    },
+    transition: {
+      speed: 0.05,
+      fadeInSpeed: 0.08,
+      fadeOutSpeed: 0.06
+    },
+    effects: {
+      rgbSplit: 0.005,
+      rgbAnimation: 0.5,
+      rgbSpeed: 0.002
+    },
+    mesh: {
+      baseSize: 300,
+      segments: 20
+    },
+    mouse: {
+      lerpFactor: 0.08,    // Smooth mouse following
+      responsiveness: 0.6   // How much the effect responds to movement
+    }
   };
 
-  const material = new THREE.ShaderMaterial({
-    transparent: true,
-    uniforms,
-    vertexShader: `
-      varying vec2 vUv;
-      uniform vec2 uOffset;
-      void main(){
-        vUv = uv;
-        vec3 p = position;
-        p.xy += uOffset * 30.0;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.);
-      }
-    `,
-    fragmentShader: `
-      varying vec2 vUv;
-      uniform sampler2D uTex;
-      uniform float uAlpha;
-      void main(){
-        vec4 c = texture2D(uTex, vUv);
-        gl_FragColor = vec4(c.rgb, c.a * uAlpha);
-      }
-    `
-  });
+  const vertexShader = `
+    uniform vec2 uOffset;
+    varying vec2 vUv;
 
+    float M_PI = 3.141529;
+
+    vec3 deformationCurve(vec3 position, vec2 uv, vec2 offset){
+        position.x += (sin(uv.y * M_PI) * offset.x);
+        position.y += (sin(uv.x * M_PI) * offset.y);
+        return position;
+    }
+
+    void main(){
+        vUv = uv;
+        vec3 newPosition = deformationCurve(position, uv, uOffset);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+    }
+  `;
+
+  const fragmentShader = `
+    uniform sampler2D uTexture;
+    uniform sampler2D uPrevTexture;
+    uniform float uAlpha;
+    uniform float uMixFactor;
+    uniform vec2 uRGBOffset;
+    uniform float uTime;
+    varying vec2 vUv;
+
+    void main(){
+        // Ripple effect for RGB offset
+        vec2 center = vec2(0.5, 0.5);
+        float distance = length(vUv - center);
+        float ripple = sin(distance * 20.0 - uTime * 5.0) * 0.02;
+        
+        // RGB split with ripple effect
+        float offsetStrength = 0.01;
+        vec2 rippleOffset = uRGBOffset + vec2(ripple);
+        
+        // RGB split sampling with ripple
+        vec4 texR = texture2D(uTexture, vUv + rippleOffset * offsetStrength);
+        vec4 texG = texture2D(uTexture, vUv);
+        vec4 texB = texture2D(uTexture, vUv - rippleOffset * offsetStrength);
+        
+        vec3 newColor = vec3(texR.r, texG.g, texB.b);
+
+        // Previous texture with same RGB split ripple
+        vec4 prevTexR = texture2D(uPrevTexture, vUv + rippleOffset * offsetStrength);
+        vec4 prevTexG = texture2D(uPrevTexture, vUv);
+        vec4 prevTexB = texture2D(uPrevTexture, vUv - rippleOffset * offsetStrength);
+        
+        vec3 prevColor = vec3(prevTexR.r, prevTexG.g, prevTexB.b);
+
+        // crossfade between previous and new texture
+        vec3 finalColor = mix(prevColor, newColor, uMixFactor);
+
+        gl_FragColor = vec4(finalColor, uAlpha);
+    }
+  `;
+
+  const scene = new THREE.Scene();
+  const perspective = 1000;
+  let offset = new THREE.Vector2(0, 0);
+  let targetX = 0, targetY = 0;
+  let currentIndex = -1;
+  let transitioning = false, fadingOut = false;
+
+  // CAMERA - Fixed for viewport
+  const camera = new THREE.PerspectiveCamera(
+    (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+  );
+  camera.position.set(0, 0, perspective);
+
+  // UNIFORMS
+  const uniforms = {
+    uTexture: { value: null },
+    uPrevTexture: { value: null },
+    uAlpha: { value: 0.0 },
+    uOffset: { value: new THREE.Vector2(0.0, 0.0) },
+    uMixFactor: { value: 1.0 },
+    uRGBOffset: { value: new THREE.Vector2(0.0, 0.0) },
+    uTime: { value: 0.0 }
+  };
+
+  // Enhanced texture loading with better fallbacks
+  function loadTextures() {
+    const links = [...wrapper.querySelectorAll('[webgl-anime="list-item"]')];
+    console.log('Found list items:', links.length);
+    
+    let textures = links.map((link, idx) => {
+      const img = link.querySelector('[webgl-anime="image-src"]');
+      if (!img) {
+        console.warn('No image found for list item', idx);
+        return null;
+      }
+      console.log('Loading texture for item', idx, img.src);
+      const tex = new THREE.TextureLoader().load(img.src, 
+        () => console.log('Texture loaded successfully for item', idx),
+        undefined,
+        (err) => console.error('Failed to load texture for item', idx, err)
+      );
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      return tex;
+    }).filter(tex => tex !== null);
+
+    // Fallback if no textures found
+    if (textures.length === 0) {
+      console.log('No textures loaded with webgl-anime attributes, trying fallback...');
+      const fallbackLinks = [...wrapper.querySelectorAll('.portfolio20_item-link')];
+      console.log('Found fallback portfolio items:', fallbackLinks.length);
+      
+      textures = fallbackLinks.map((item, idx) => {
+        const img = item.querySelector('img');
+        if (!img) return null;
+        console.log('Loading fallback texture for item', idx, img.src);
+        const tex = new THREE.TextureLoader().load(img.src);
+        tex.minFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        return tex;
+      }).filter(tex => tex !== null);
+      
+      // Update links array if fallback worked
+      if (textures.length > 0) {
+        links.length = 0;
+        links.push(...fallbackLinks);
+      }
+    }
+
+    return { links, textures };
+  }
+
+  const { links, textures } = loadTextures();
+  console.log('Final loaded textures:', textures.length);
+
+  // MESH
+  const geometry = new THREE.PlaneGeometry(1, 1, SETTINGS.mesh.segments, SETTINGS.mesh.segments);
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader,
+    fragmentShader,
+    transparent: true
+  });
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
 
-  let target = new THREE.Vector2();
-  let pos = new THREE.Vector2();
-  let active = false;
+  // Lerp function for smooth transitions
+  function lerp(start, end, t) {
+    return start * (1.0 - t) + end * t;
+  }
 
-  wrapper.querySelectorAll("[webgl-anime='list-item']").forEach(link => {
-    const img = link.querySelector("img");
-    let texture;
+  // ENHANCED LINK EVENTS
+  links.forEach((link, idx) => {
+    if (!textures[idx]) {
+      console.warn('No texture for link', idx);
+      return;
+    }
+    
+    console.log('Setting up enhanced events for link', idx, link);
+    
+    link.addEventListener("mouseenter", () => {
+      console.log("Mouse entered link", idx);
 
-    link.addEventListener("mouseenter", async e => {
-      if (!texture) texture = await loadTexture(img.src);
-      uniforms.uTex.value = texture;
-      uniforms.uAlpha.value = 1;
-      const r = wrapper.getBoundingClientRect();
-      mesh.scale.set(img.naturalWidth, img.naturalHeight, 1);
-      target.set(e.clientX - r.left, r.height - (e.clientY - r.top));
-      active = true;
-      window.WebGLEffects.requestRender();
+      uniforms.uPrevTexture.value = uniforms.uTexture.value;
+      uniforms.uTexture.value = textures[idx];
+      uniforms.uAlpha.value = 1.0;
+      uniforms.uMixFactor.value = 0.0;
+
+      currentIndex = idx;
+      transitioning = true;
+      fadingOut = false;
+
+      // Enhanced image scaling based on aspect ratio
+      const img = link.querySelector('[webgl-anime="image-src"]') || link.querySelector('img');
+      if (img) {
+        const aspect = img.naturalWidth / img.naturalHeight;
+        mesh.scale.set(SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize, 1);
+        console.log("Enhanced scaling applied:", SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize);
+      }
     });
 
     link.addEventListener("mouseleave", () => {
-      uniforms.uAlpha.value = 0;
-      active = false;
+      console.log("Mouse left link", idx);
+      fadingOut = true;
     });
   });
 
-  wrapper.addEventListener("mousemove", e => {
-    if (!active) return;
-    const r = wrapper.getBoundingClientRect();
-    target.set(e.clientX - r.left, r.height - (e.clientY - r.top));
+  // ENHANCED MOUSE MOVE - Better tracking within wrapper
+  wrapper.addEventListener("mousemove", (e) => {
+    // Only track mouse when we're on the list tab and have an active effect
+    if (window.WebGLEffects.getCurrentTab() !== 'Tab 2' || currentIndex === -1) return;
+    
+    const rect = wrapper.getBoundingClientRect();
+    targetX = e.clientX - rect.left;
+    targetY = e.clientY - rect.top;
   });
 
-  return {
-    update() {
-      pos.lerp(target, 0.1);
-      mesh.position.set(pos.x - window.innerWidth / 2, pos.y - window.innerHeight / 2, 0);
-      uniforms.uOffset.value.lerp(
-        new THREE.Vector2(
-          (target.x - pos.x) * 0.001,
-          (target.y - pos.y) * 0.001
-        ),
-        0.1
-      );
-    },
-    dispose() {
-      geometry.dispose();
-      material.dispose();
-    }
+  // RESIZE HANDLER
+  const resizeHandler = () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.fov = (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI;
+    camera.updateProjectionMatrix();
   };
+  window.addEventListener("resize", resizeHandler);
+
+  function update() {
+    // Update time for ripple effect
+    uniforms.uTime.value = Date.now() * 0.001;
+
+    if (uniforms.uAlpha.value > 0 && currentIndex >= 0) {
+      // Much smoother lerping with enhanced responsiveness
+      offset.x = lerp(offset.x, targetX, SETTINGS.mouse.lerpFactor);
+      offset.y = lerp(offset.y, targetY, SETTINGS.mouse.lerpFactor);
+
+      // Smoother deformation with better responsiveness
+      const deltaX = (targetX - offset.x) * SETTINGS.mouse.responsiveness;
+      const deltaY = (targetY - offset.y) * SETTINGS.mouse.responsiveness;
+      
+      uniforms.uOffset.value.set(
+        deltaX * SETTINGS.deformation.strength,
+        -deltaY * SETTINGS.deformation.strength
+      );
+
+      // Smoother RGB split on mouse movement
+      const rgbStrength = 0.0008; // Reduced for subtlety
+      uniforms.uRGBOffset.value.set(
+        deltaX * rgbStrength,
+        deltaY * rgbStrength
+      );
+
+      // Smoother positioning - mesh follows mouse within wrapper bounds
+      const rect = wrapper.getBoundingClientRect();
+      const wrapperCenterX = rect.width / 2;
+      const wrapperCenterY = rect.height / 2;
+      
+      // Convert wrapper coordinates to world coordinates with smooth following
+      const worldX = lerp(mesh.position.x, offset.x - wrapperCenterX, 0.1);
+      const worldY = lerp(mesh.position.y, wrapperCenterY - offset.y, 0.1);
+      
+      mesh.position.set(worldX, worldY, 0);
+    }
+
+    // Enhanced transition handling
+    if (transitioning && uniforms.uMixFactor.value < 1.0) {
+      uniforms.uMixFactor.value += SETTINGS.transition.speed;
+      if (uniforms.uMixFactor.value >= 1.0) {
+        transitioning = false;
+        uniforms.uPrevTexture.value = null;
+      }
+    }
+
+    // Enhanced fade out
+    if (fadingOut && uniforms.uAlpha.value > 0.0) {
+      uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
+      if (uniforms.uAlpha.value <= 0.0) {
+        uniforms.uAlpha.value = 0.0;
+        fadingOut = false;
+        currentIndex = -1;
+      }
+    }
+  }
+
+  // Cleanup function
+  const cleanup = () => {
+    window.removeEventListener("resize", resizeHandler);
+    scene.clear();
+    geometry.dispose();
+    material.dispose();
+    textures.forEach(tex => tex.dispose());
+  };
+
+  return { scene, camera, update, cleanup, type: 'list-hover' };
 }
 
-/* =====================================================
-   TAB 1 — GRID BULGE EFFECT (SINGLE SCENE)
-===================================================== */
-function initBulgeGrid(scene) {
-  const cards = document.querySelectorAll(
-    '[data-w-tab="Tab 1"] [webgl-anime="image-hover"]'
+/*
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+Bulge Effect for Grid Tab
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+*/
+function initBulgeEffects() {
+  console.log("initBulgeEffects called");
+
+  // Only run if we're on the grid tab
+  if (window.WebGLEffects.getCurrentTab() !== 'Tab 1') {
+    console.log('Skipping bulge effect - wrong tab');
+    return;
+  }
+
+  const cards = Array.from(
+    document.querySelectorAll('[data-w-tab="Tab 1"] [webgl-anime="image-hover"]')
   );
+  console.log("Cards found:", cards.length);
 
-  const group = new THREE.Group();
-  scene.add(group);
+  const loader = new THREE.TextureLoader();
+  const planes = [];
 
-  cards.forEach(async card => {
-    const img = card.querySelector("img");
-    if (!img) return;
+  // Shader code
+  const vertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+    }
+  `;
 
-    const tex = await loadTexture(img.src);
-    img.style.opacity = "0";
+  const fragmentShader = `
+    precision highp float;
+    uniform sampler2D uTexture;
+    uniform vec2 uMouse;
+    uniform float uHover;
+    varying vec2 vUv;
+    void main() {
+      vec2 uv = vUv;
+      vec2 diff = uv - uMouse;
+      float dist = length(diff);
+      uv -= diff * 0.25 * uHover * exp(-3.0*dist*dist);
+      vec4 color = texture2D(uTexture, uv);
+     float glow = exp(-3.0 * dist * dist) * 0.18;
+     vec3 glowColor = vec3(0.424, 0.388, 1.0);
+     color.rgb += glowColor * glow;
+     color.rgb = min(color.rgb, 1.0);
 
-    const geo = new THREE.PlaneGeometry(
-      card.offsetWidth,
-      card.offsetHeight,
-      1,
-      1
-    );
 
-    const mat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTex: { value: tex },
-        uMouse: { value: new THREE.Vector2(0.5, 0.5) },
-        uHover: { value: 0 }
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        void main(){ vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.);}
-      `,
-      fragmentShader: `
-        varying vec2 vUv;
-        uniform sampler2D uTex;
-        uniform vec2 uMouse;
-        uniform float uHover;
-        void main(){
-          vec2 d = vUv - uMouse;
-          vec2 uv = vUv - d * uHover * 0.25;
-          gl_FragColor = texture2D(uTex, uv);
-        }
-      `
+      gl_FragColor = color;
+    }
+  `;
+
+  cards.forEach((card, i) => {
+    console.log("Processing card:", i);
+
+    // remove old canvases if they exist
+    card.querySelectorAll(".work-canvas").forEach(el => {
+      console.log("Removed old canvas from card", i);
+      el.remove();
     });
 
-    const mesh = new THREE.Mesh(geo, mat);
-    group.add(mesh);
+    const img = card.querySelector("img");
+    if (!img) {
+      console.warn("No image found in card", i);
+      return;
+    }
 
-    const r = card.getBoundingClientRect();
-    mesh.position.set(
-      r.left + r.width / 2 - window.innerWidth / 2,
-      window.innerHeight / 2 - (r.top + r.height / 2),
-      0
+    const texture = loader.load(img.src, () => {
+      console.log("Texture loaded for card", i);
+      img.style.opacity = "0"; // hide original image once texture is ready
+    });
+
+    const width = card.offsetWidth;
+    const height = card.offsetHeight;
+
+    // Scene, camera, renderer per card
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(
+      -width / 2,
+      width / 2,
+      height / 2,
+      -height / 2,
+      0.1,
+      10
     );
+    camera.position.z = 1;
 
-    card.addEventListener("mousemove", e => {
-      const b = card.getBoundingClientRect();
-      mat.uniforms.uMouse.value.set(
-        (e.clientX - b.left) / b.width,
-        1 - (e.clientY - b.top) / b.height
-      );
-      mat.uniforms.uHover.value = 1;
-      window.WebGLEffects.requestRender();
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+    });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    // Add class
+    renderer.domElement.classList.add("work-canvas");
+    card.appendChild(renderer.domElement);
+    console.log("Added canvas to card", i);
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTexture: { value: texture },
+        uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+        uHover: { value: 0 },
+      },
+      vertexShader,
+      fragmentShader,
+    });
+
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.scale.set(width, height, 1);
+    scene.add(mesh);
+
+    let animationId;
+
+    const cardData = { 
+      card, 
+      renderer, 
+      scene, 
+      camera, 
+      material, 
+      geometry, 
+      texture,
+      animationId: null
+    };
+    
+    planes.push(cardData);
+
+    // Mouse move
+    card.addEventListener("mousemove", (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = 1 - (e.clientY - rect.top) / rect.height;
+      material.uniforms.uMouse.value.set(x, y);
+      material.uniforms.uHover.value +=
+        (1.0 - material.uniforms.uHover.value) * 0.2;
     });
 
     card.addEventListener("mouseleave", () => {
-      mat.uniforms.uHover.value = 0;
+      console.log("Mouse left card", i);
     });
+
+    function animate() {
+      // Only animate if we're still on the grid tab
+      if (window.WebGLEffects.getCurrentTab() === 'Tab 1') {
+        cardData.animationId = requestAnimationFrame(animate);
+        material.uniforms.uHover.value *= 0.97;
+        renderer.render(scene, camera);
+      }
+    }
+    animate();
+
+    // Responsive
+    const resizeHandler = () => {
+      if (window.WebGLEffects.getCurrentTab() !== 'Tab 1') return;
+      
+      const width = card.offsetWidth;
+      const height = card.offsetHeight;
+      renderer.setSize(width, height);
+      camera.left = -width / 2;
+      camera.right = width / 2;
+      camera.top = height / 2;
+      camera.bottom = -height / 2;
+      camera.updateProjectionMatrix();
+      mesh.scale.set(width, height, 1);
+      console.log("Resized card", i);
+    };
+    
+    window.addEventListener("resize", resizeHandler);
+    
+    // Store resize handler for cleanup
+    cardData.resizeHandler = resizeHandler;
   });
 
-  return {
-    update() {},
-    dispose() {
-      scene.remove(group);
-    }
-  };
+  // Store planes globally for cleanup
+  window.currentBulgePlanes = planes;
+}
+
+// Cleanup function for bulge effects
+function cleanupBulgeEffects() {
+  if (window.currentBulgePlanes) {
+    window.currentBulgePlanes.forEach((plane, i) => {
+      console.log("Cleaning up plane", i);
+      
+      // Cancel animation
+      if (plane.animationId) {
+        cancelAnimationFrame(plane.animationId);
+      }
+      
+      // Remove event listeners
+      if (plane.resizeHandler) {
+        window.removeEventListener("resize", plane.resizeHandler);
+      }
+      
+      // Dispose resources
+      if (plane.geometry) plane.geometry.dispose();
+      if (plane.material) plane.material.dispose();
+      if (plane.texture) plane.texture.dispose();
+      if (plane.renderer) plane.renderer.dispose();
+      
+      // Remove canvas
+      const canvas = plane.card.querySelector('.work-canvas');
+      if (canvas) canvas.remove();
+      
+      // Show original image
+      const img = plane.card.querySelector('img');
+      if (img) img.style.opacity = '1';
+    });
+    
+    window.currentBulgePlanes = [];
+  }
+}
+
+/*
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+Initialize on load
+☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
+*/
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(() => {
+    console.log("DOMContentLoaded init");
+    
+    // Initialize effects based on current tab
+    const currentTab = window.WebGLEffects.getCurrentTab();
+    console.log("Current tab on load:", currentTab);
+    
+    window.WebGLEffects.initTabEffects(currentTab);
+    
+    // Fallback: If no effects were initialized, try again with Tab 2
+    setTimeout(() => {
+      if (window.WebGLEffects.renderer) {
+        const hasEffects = window.WebGLEffects.renderer.info?.render?.triangles > 0;
+        if (!hasEffects) {
+          console.log('No effects detected, forcing Tab 2 initialization');
+          window.WebGLEffects.initTabEffects('Tab 2');
+        }
+      }
+    }, 500);
+  }, 100);
+});
+
+if (document.readyState !== "loading") {
+  setTimeout(() => {
+    console.log("Page already loaded, init immediately");
+    
+    // Initialize effects based on current tab
+    const currentTab = window.WebGLEffects.getCurrentTab();
+    console.log("Current tab on load:", currentTab);
+    
+    window.WebGLEffects.initTabEffects(currentTab);
+    
+    // Fallback: If no effects were initialized, try again with Tab 2
+    setTimeout(() => {
+      if (window.WebGLEffects.renderer) {
+        console.log('Checking if effects are running...');
+        // Force Tab 2 initialization if screen is still black
+        window.WebGLEffects.initTabEffects('Tab 2');
+      }
+    }, 500);
+  }, 100);
 }
