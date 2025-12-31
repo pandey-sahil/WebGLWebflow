@@ -559,8 +559,12 @@ function initBulgeEffects() {
       float dist = length(diff);
       uv -= diff * 0.25 * uHover * exp(-3.0*dist*dist);
       vec4 color = texture2D(uTexture, uv);
-      float glow = exp(-3.0*dist*dist) * 0.25;
-      color.rgb += glow;
+     float glow = exp(-3.0 * dist * dist) * 0.18;
+     vec3 glowColor = vec3(0.424, 0.388, 1.0);
+     color.rgb += glowColor * glow;
+     color.rgb = min(color.rgb, 1.0);
+
+
       gl_FragColor = color;
     }
   `;
