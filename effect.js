@@ -39,9 +39,6 @@ window.WebGLEffects = (function () {
       100
     );
     camera.position.z = 5;
-
-    // Initialize scroll blur effect
-    initScrollBlurEffect();
     
     animate();
     window.addEventListener("resize", onResize);
