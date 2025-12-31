@@ -1,55 +1,37 @@
-
-import * as THREE from "three";
+import * as THREE from 'three';
 
 /*
 =====================================================
    GLOBAL EFFECT MANAGER WITH TAB SUPPORT
 =====================================================
 */
-const DPR = Math.min(window.devicePixelRatio, 1.5);
-const IS_MOBILE = window.innerWidth < 768;
-const REDUCED_MOTION = window.matchMedia(
-  "(prefers-reduced-motion: reduce)"
-).matches;
-
 window.WebGLEffects = (function () {
   const effects = [];
   let renderer, scene, camera;
-  let currentTab = "Tab 1"; // Default to grid view
+  let currentTab = 'Tab 1'; // Default to grid view
   let animationId = null;
   let scrollBlurEffect = null;
 
   function init() {
-    if (REDUCED_MOTION) return;
-
-    renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      antialias: !IS_MOBILE,
-      powerPreference: "high-performance",
-    });
-
-    renderer.setPixelRatio(DPR);
+    // Shared renderer
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.autoClear = false;
-
-    renderer.domElement.classList.add(
-      "global-webgl-canvas",
-      "scroll-blur-canvas"
-    );
-    Object.assign(renderer.domElement.style, {
-      position: "fixed",
-      top: "0",
-      left: "0",
-      width: "100%",
-      height: "100%",
-      zIndex: "1",
-      pointerEvents: "none",
-    });
-
+    
+    // add class and styling before appending
+    renderer.domElement.classList.add("global-webgl-canvas");
+    renderer.domElement.classList.add("scroll-blur-canvas"); 
+    renderer.domElement.style.position = "fixed";
+    renderer.domElement.style.top = "0";
+    renderer.domElement.style.left = "0";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.zIndex = "1"; // Lower z-index to not interfere with other animations
+    renderer.domElement.style.pointerEvents = "none";
     document.body.appendChild(renderer.domElement);
 
+    // Shared scene + camera
     scene = new THREE.Scene();
-
     camera = new THREE.PerspectiveCamera(
       45,
       window.innerWidth / window.innerHeight,
@@ -58,39 +40,41 @@ window.WebGLEffects = (function () {
     );
     camera.position.z = 5;
 
+    // Initialize scroll blur effect
     initScrollBlurEffect();
-    initTabListener();
-
-    active = true;
-    needsRender = true;
-
+    
     animate();
     window.addEventListener("resize", onResize);
+    
+    // Listen for tab changes
+    initTabListener();
+    
+    console.log('Global WebGL renderer initialized with scroll blur');
   }
 
   function initTabListener() {
     // Listen for tab clicks
-    document.addEventListener("click", (e) => {
-      const tabLink = e.target.closest("[data-w-tab]");
+    document.addEventListener('click', (e) => {
+      const tabLink = e.target.closest('[data-w-tab]');
       if (tabLink) {
-        const newTab = tabLink.getAttribute("data-w-tab");
+        const newTab = tabLink.getAttribute('data-w-tab');
         if (newTab !== currentTab) {
-          console.log("Tab changed from", currentTab, "to", newTab);
+          console.log('Tab changed from', currentTab, 'to', newTab);
           switchTab(newTab);
         }
       }
     });
 
     // Also check for initial active tab
-    const activeTab = document.querySelector(".w-tab-link.w--current");
+    const activeTab = document.querySelector('.w-tab-link.w--current');
     if (activeTab) {
-      currentTab = activeTab.getAttribute("data-w-tab") || "Tab 1";
-      console.log("Initial tab:", currentTab);
+      currentTab = activeTab.getAttribute('data-w-tab') || 'Tab 1';
+      console.log('Initial tab:', currentTab);
     }
 
     // Also listen for Webflow's tab change events
-    document.addEventListener("w-tab-change", (e) => {
-      console.log("Webflow tab change detected", e.detail);
+    document.addEventListener('w-tab-change', (e) => {
+      console.log('Webflow tab change detected', e.detail);
       if (e.detail && e.detail.tab !== currentTab) {
         switchTab(e.detail.tab);
       }
@@ -98,44 +82,43 @@ window.WebGLEffects = (function () {
   }
 
   function switchTab(newTab) {
-    if (newTab === currentTab) return;
-
-    active = false;
-    cleanupEffects(currentTab);
-
+    const oldTab = currentTab;
+    currentTab = newTab;
+    
+    // Clean up old effects
+    cleanupEffects(oldTab);
+    
+    // Initialize new effects after a short delay to let DOM update
     setTimeout(() => {
-      currentTab = newTab;
-      active = true;
-      needsRender = true;
       initTabEffects(newTab);
-    }, 150);
+    }, 100);
   }
 
   function cleanupEffects(tab) {
-    if (tab === "Tab 1") {
+    if (tab === 'Tab 1') {
       // Clean up bulge effects
       cleanupBulgeEffects();
-    } else if (tab === "Tab 2") {
+    } else if (tab === 'Tab 2') {
       // Clean up list effects
       cleanupListEffects();
     }
   }
 
   function cleanupBulgeEffects() {
-    console.log("Cleaning up bulge effects");
-    const canvases = document.querySelectorAll(".work-canvas");
-    canvases.forEach((canvas) => canvas.remove());
-
+    console.log('Cleaning up bulge effects');
+    const canvases = document.querySelectorAll('.work-canvas');
+    canvases.forEach(canvas => canvas.remove());
+    
     // Reset image opacity
     const images = document.querySelectorAll('[webgl-anime="image-hover"] img');
-    images.forEach((img) => (img.style.opacity = "1"));
+    images.forEach(img => img.style.opacity = '1');
   }
 
   function cleanupListEffects() {
-    console.log("Cleaning up list effects");
+    console.log('Cleaning up list effects');
     // Remove list-specific effects from the global effects array
     for (let i = effects.length - 1; i >= 0; i--) {
-      if (effects[i].type === "list-hover") {
+      if (effects[i].type === 'list-hover') {
         if (effects[i].cleanup) {
           effects[i].cleanup();
         }
@@ -145,31 +128,27 @@ window.WebGLEffects = (function () {
   }
 
   function initTabEffects(tab) {
-    console.log("Initializing effects for tab:", tab);
-
-    if (tab === "Tab 1") {
+    console.log('Initializing effects for tab:', tab);
+    
+    if (tab === 'Tab 1') {
       // Initialize bulge effects
       setTimeout(() => {
         initBulgeEffects();
       }, 50);
-    } else if (tab === "Tab 2") {
+    } else if (tab === 'Tab 2') {
       // Initialize list effects
       const listEffect = HoverListEffect(renderer);
       if (listEffect) {
-        listEffect.type = "list-hover";
+        listEffect.type = 'list-hover';
         effects.push(listEffect);
       }
     }
   }
 
   function onResize() {
-    if (!renderer) return;
-
     renderer.setSize(window.innerWidth, window.innerHeight);
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
-
-    needsRender = true;
   }
 
   function addEffect(effectFn) {
@@ -180,36 +159,39 @@ window.WebGLEffects = (function () {
 
   function animate(time) {
     animationId = requestAnimationFrame(animate);
-
-    if (!active || !needsRender) return;
-
-    renderer.clear();
-
+    
+    // Always render scroll blur effect (global background)
     if (scrollBlurEffect) {
       scrollBlurEffect.update(time);
+      renderer.setRenderTarget(null);
+      renderer.clear();
       renderer.render(scrollBlurEffect.scene, scrollBlurEffect.camera);
     }
-
-    effects.forEach((e) => {
-      if (e.update) e.update(time);
-      if (e.scene && e.camera) {
-        renderer.render(e.scene, e.camera);
-      }
-    });
+    
+    // Render tab-specific effects on top
+    if (currentTab === 'Tab 2') {
+      // Update and render list effects
+      effects.forEach((e) => {
+        if (e.update) e.update(time);
+        if (e.scene && e.camera && e.type === 'list-hover') {
+          renderer.render(e.scene, e.camera);
+        }
+      });
+    }
   }
 
   init();
 
   // Expose the renderer so effects can use it
-  return {
-    addEffect,
-    renderer,
-    scene,
-    camera,
+  return { 
+    addEffect, 
+    renderer, 
+    scene, 
+    camera, 
     switchTab,
     getCurrentTab: () => currentTab,
     initTabEffects,
-    scrollBlurEffect: () => scrollBlurEffect,
+    scrollBlurEffect: () => scrollBlurEffect
   };
 })();
 
@@ -219,7 +201,6 @@ Progressive Blur Scroll Effect for Section Reveals
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */
 function initScrollBlurEffect() {
-  if (REDUCED_MOTION) return null;
   if (!window.WebGLEffects) window.WebGLEffects = {};
 
   const scene = new THREE.Scene();
@@ -274,9 +255,7 @@ function initScrollBlurEffect() {
     uTime: { value: 0 },
     uScrollProgress: { value: 0 },
     uScrollDir: { value: 1.0 }, // start assuming scrolling down
-    uResolution: {
-      value: new THREE.Vector2(window.innerWidth, window.innerHeight),
-    },
+    uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
   };
 
   const geometry = new THREE.PlaneGeometry(2, 2);
@@ -285,7 +264,7 @@ function initScrollBlurEffect() {
     vertexShader,
     fragmentShader,
     transparent: true,
-    blending: THREE.NormalBlending,
+    blending: THREE.NormalBlending
   });
 
   const mesh = new THREE.Mesh(geometry, material);
@@ -300,18 +279,11 @@ function initScrollBlurEffect() {
     uniforms.uScrollProgress.value = Math.min(scrolled / maxScroll, 1);
 
     // detect direction
-    uniforms.uScrollDir.value = scrolled > lastScroll ? 1.0 : -1.0;
+    uniforms.uScrollDir.value = (scrolled > lastScroll) ? 1.0 : -1.0;
     lastScroll = scrolled;
   };
 
-  window.addEventListener(
-    "scroll",
-    () => {
-      updateScroll();
-      needsRender = true;
-    },
-    { passive: true }
-  );
+  window.addEventListener("scroll", updateScroll, { passive: true });
 
   const update = (time) => {
     uniforms.uTime.value = time * 0.001;
@@ -331,61 +303,58 @@ function initScrollBlurEffect() {
       window.removeEventListener("resize", resize);
       geometry.dispose();
       material.dispose();
-    },
+    }
   };
 
   return window.WebGLEffects.scrollBlurEffect;
 }
 
+
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
 Enhanced Hover List Effect Animation
 ☰☰☰☰☰☰☰☰☰☰☰☰☰
-*/
+*/ 
 function HoverListEffect(globalRenderer) {
-  if (IS_MOBILE || REDUCED_MOTION) return null;
-
   // Only initialize if we're on the list tab
-  if (window.WebGLEffects.getCurrentTab() !== "Tab 2") {
-    console.log("Skipping list effect - wrong tab");
+  if (window.WebGLEffects.getCurrentTab() !== 'Tab 2') {
+    console.log('Skipping list effect - wrong tab');
     return null;
   }
 
   // Look for the actual tab content div that contains the list items
-  const wrapper =
-    document.querySelector("#tab-list-pane") ||
-    document.querySelector('[data-w-tab="Tab 2"]');
+  const wrapper = document.querySelector('#tab-list-pane') || document.querySelector('[data-w-tab="Tab 2"]');
   if (!wrapper) {
     console.warn("HoverListEffect: No Tab 2 wrapper found");
     return null;
   }
 
-  console.log("Initializing Enhanced HoverListEffect for Tab 2", wrapper);
+  console.log('Initializing Enhanced HoverListEffect for Tab 2', wrapper);
 
   // Enhanced settings for smoother following
   const SETTINGS = {
     deformation: {
-      strength: 0.00055,
-      smoothing: 0.05, // Made much smoother (reduced from 0.1)
+      strength: 0.00055,  
+      smoothing: 0.05     // Made much smoother (reduced from 0.1)
     },
     transition: {
       speed: 0.05,
       fadeInSpeed: 0.08,
-      fadeOutSpeed: 0.06,
+      fadeOutSpeed: 0.06
     },
     effects: {
       rgbSplit: 0.005,
       rgbAnimation: 0.5,
-      rgbSpeed: 0.002,
+      rgbSpeed: 0.002
     },
     mesh: {
       baseSize: 300,
-      segments: 20,
+      segments: 20
     },
     mouse: {
-      lerpFactor: 0.08, // Smooth mouse following
-      responsiveness: 0.6, // How much the effect responds to movement
-    },
+      lerpFactor: 0.08,    // Smooth mouse following
+      responsiveness: 0.6   // How much the effect responds to movement
+    }
   };
 
   const vertexShader = `
@@ -450,11 +419,9 @@ function HoverListEffect(globalRenderer) {
   const scene = new THREE.Scene();
   const perspective = 1000;
   let offset = new THREE.Vector2(0, 0);
-  let targetX = 0,
-    targetY = 0;
+  let targetX = 0, targetY = 0;
   let currentIndex = -1;
-  let transitioning = false,
-    fadingOut = false;
+  let transitioning = false, fadingOut = false;
 
   // CAMERA - Fixed for viewport
   const camera = new THREE.PerspectiveCamera(
@@ -473,56 +440,47 @@ function HoverListEffect(globalRenderer) {
     uOffset: { value: new THREE.Vector2(0.0, 0.0) },
     uMixFactor: { value: 1.0 },
     uRGBOffset: { value: new THREE.Vector2(0.0, 0.0) },
-    uTime: { value: 0.0 },
+    uTime: { value: 0.0 }
   };
 
   // Enhanced texture loading with better fallbacks
   function loadTextures() {
     const links = [...wrapper.querySelectorAll('[webgl-anime="list-item"]')];
-    console.log("Found list items:", links.length);
-
-    let textures = links
-      .map((link, idx) => {
-        const img = link.querySelector('[webgl-anime="image-src"]');
-        if (!img) {
-          console.warn("No image found for list item", idx);
-          return null;
-        }
-        console.log("Loading texture for item", idx, img.src);
-        const tex = new THREE.TextureLoader().load(
-          img.src,
-          () => console.log("Texture loaded successfully for item", idx),
-          undefined,
-          (err) => console.error("Failed to load texture for item", idx, err)
-        );
-        tex.minFilter = THREE.LinearFilter;
-        tex.generateMipmaps = false;
-        return tex;
-      })
-      .filter((tex) => tex !== null);
+    console.log('Found list items:', links.length);
+    
+    let textures = links.map((link, idx) => {
+      const img = link.querySelector('[webgl-anime="image-src"]');
+      if (!img) {
+        console.warn('No image found for list item', idx);
+        return null;
+      }
+      console.log('Loading texture for item', idx, img.src);
+      const tex = new THREE.TextureLoader().load(img.src, 
+        () => console.log('Texture loaded successfully for item', idx),
+        undefined,
+        (err) => console.error('Failed to load texture for item', idx, err)
+      );
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      return tex;
+    }).filter(tex => tex !== null);
 
     // Fallback if no textures found
     if (textures.length === 0) {
-      console.log(
-        "No textures loaded with webgl-anime attributes, trying fallback..."
-      );
-      const fallbackLinks = [
-        ...wrapper.querySelectorAll(".portfolio20_item-link"),
-      ];
-      console.log("Found fallback portfolio items:", fallbackLinks.length);
-
-      textures = fallbackLinks
-        .map((item, idx) => {
-          const img = item.querySelector("img");
-          if (!img) return null;
-          console.log("Loading fallback texture for item", idx, img.src);
-          const tex = new THREE.TextureLoader().load(img.src);
-          tex.minFilter = THREE.LinearFilter;
-          tex.generateMipmaps = false;
-          return tex;
-        })
-        .filter((tex) => tex !== null);
-
+      console.log('No textures loaded with webgl-anime attributes, trying fallback...');
+      const fallbackLinks = [...wrapper.querySelectorAll('.portfolio20_item-link')];
+      console.log('Found fallback portfolio items:', fallbackLinks.length);
+      
+      textures = fallbackLinks.map((item, idx) => {
+        const img = item.querySelector('img');
+        if (!img) return null;
+        console.log('Loading fallback texture for item', idx, img.src);
+        const tex = new THREE.TextureLoader().load(img.src);
+        tex.minFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        return tex;
+      }).filter(tex => tex !== null);
+      
       // Update links array if fallback worked
       if (textures.length > 0) {
         links.length = 0;
@@ -534,20 +492,15 @@ function HoverListEffect(globalRenderer) {
   }
 
   const { links, textures } = loadTextures();
-  console.log("Final loaded textures:", textures.length);
+  console.log('Final loaded textures:', textures.length);
 
   // MESH
-  const geometry = new THREE.PlaneGeometry(
-    1,
-    1,
-    SETTINGS.mesh.segments,
-    SETTINGS.mesh.segments
-  );
+  const geometry = new THREE.PlaneGeometry(1, 1, SETTINGS.mesh.segments, SETTINGS.mesh.segments);
   const material = new THREE.ShaderMaterial({
     uniforms,
     vertexShader,
     fragmentShader,
-    transparent: true,
+    transparent: true
   });
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
@@ -560,12 +513,12 @@ function HoverListEffect(globalRenderer) {
   // ENHANCED LINK EVENTS
   links.forEach((link, idx) => {
     if (!textures[idx]) {
-      console.warn("No texture for link", idx);
+      console.warn('No texture for link', idx);
       return;
     }
-
-    console.log("Setting up enhanced events for link", idx, link);
-
+    
+    console.log('Setting up enhanced events for link', idx, link);
+    
     link.addEventListener("mouseenter", () => {
       console.log("Mouse entered link", idx);
 
@@ -579,21 +532,11 @@ function HoverListEffect(globalRenderer) {
       fadingOut = false;
 
       // Enhanced image scaling based on aspect ratio
-      const img =
-        link.querySelector('[webgl-anime="image-src"]') ||
-        link.querySelector("img");
+      const img = link.querySelector('[webgl-anime="image-src"]') || link.querySelector('img');
       if (img) {
         const aspect = img.naturalWidth / img.naturalHeight;
-        mesh.scale.set(
-          SETTINGS.mesh.baseSize * aspect,
-          SETTINGS.mesh.baseSize,
-          1
-        );
-        console.log(
-          "Enhanced scaling applied:",
-          SETTINGS.mesh.baseSize * aspect,
-          SETTINGS.mesh.baseSize
-        );
+        mesh.scale.set(SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize, 1);
+        console.log("Enhanced scaling applied:", SETTINGS.mesh.baseSize * aspect, SETTINGS.mesh.baseSize);
       }
     });
 
@@ -604,51 +547,76 @@ function HoverListEffect(globalRenderer) {
   });
 
   // ENHANCED MOUSE MOVE - Better tracking within wrapper
-  let mouseDirty = false;
-
   wrapper.addEventListener("mousemove", (e) => {
-    mouseDirty = true;
+    // Only track mouse when we're on the list tab and have an active effect
+    if (window.WebGLEffects.getCurrentTab() !== 'Tab 2' || currentIndex === -1) return;
+    
     const rect = wrapper.getBoundingClientRect();
     targetX = e.clientX - rect.left;
     targetY = e.clientY - rect.top;
-    needsRender = true;
   });
 
   // RESIZE HANDLER
   const resizeHandler = () => {
     camera.aspect = window.innerWidth / window.innerHeight;
-    camera.fov =
-      (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI;
+    camera.fov = (180 * (2 * Math.atan(window.innerHeight / 2 / perspective))) / Math.PI;
     camera.updateProjectionMatrix();
   };
   window.addEventListener("resize", resizeHandler);
 
   function update() {
-    uniforms.uTime.value = performance.now() * 0.001;
-
-    if (!mouseDirty && uniforms.uAlpha.value <= 0) return;
-
-    mouseDirty = false;
+    // Update time for ripple effect
+    uniforms.uTime.value = Date.now() * 0.001;
 
     if (uniforms.uAlpha.value > 0 && currentIndex >= 0) {
+      // Much smoother lerping with enhanced responsiveness
       offset.x = lerp(offset.x, targetX, SETTINGS.mouse.lerpFactor);
       offset.y = lerp(offset.y, targetY, SETTINGS.mouse.lerpFactor);
 
+      // Smoother deformation with better responsiveness
+      const deltaX = (targetX - offset.x) * SETTINGS.mouse.responsiveness;
+      const deltaY = (targetY - offset.y) * SETTINGS.mouse.responsiveness;
+      
       uniforms.uOffset.value.set(
-        (targetX - offset.x) * SETTINGS.deformation.strength,
-        -(targetY - offset.y) * SETTINGS.deformation.strength
+        deltaX * SETTINGS.deformation.strength,
+        -deltaY * SETTINGS.deformation.strength
       );
+
+      // Smoother RGB split on mouse movement
+      const rgbStrength = 0.0008; // Reduced for subtlety
+      uniforms.uRGBOffset.value.set(
+        deltaX * rgbStrength,
+        deltaY * rgbStrength
+      );
+
+      // Smoother positioning - mesh follows mouse within wrapper bounds
+      const rect = wrapper.getBoundingClientRect();
+      const wrapperCenterX = rect.width / 2;
+      const wrapperCenterY = rect.height / 2;
+      
+      // Convert wrapper coordinates to world coordinates with smooth following
+      const worldX = lerp(mesh.position.x, offset.x - wrapperCenterX, 0.1);
+      const worldY = lerp(mesh.position.y, wrapperCenterY - offset.y, 0.1);
+      
+      mesh.position.set(worldX, worldY, 0);
     }
 
+    // Enhanced transition handling
     if (transitioning && uniforms.uMixFactor.value < 1.0) {
       uniforms.uMixFactor.value += SETTINGS.transition.speed;
+      if (uniforms.uMixFactor.value >= 1.0) {
+        transitioning = false;
+        uniforms.uPrevTexture.value = null;
+      }
     }
 
-    if (fadingOut) {
+    // Enhanced fade out
+    if (fadingOut && uniforms.uAlpha.value > 0.0) {
       uniforms.uAlpha.value -= SETTINGS.transition.fadeOutSpeed;
-      if (uniforms.uAlpha.value <= 0) {
-        uniforms.uAlpha.value = 0;
-        needsRender = false;
+      if (uniforms.uAlpha.value <= 0.0) {
+        uniforms.uAlpha.value = 0.0;
+        fadingOut = false;
+        currentIndex = -1;
       }
     }
   }
@@ -659,10 +627,10 @@ function HoverListEffect(globalRenderer) {
     scene.clear();
     geometry.dispose();
     material.dispose();
-    textures.forEach((tex) => tex.dispose());
+    textures.forEach(tex => tex.dispose());
   };
 
-  return { scene, camera, update, cleanup, type: "list-hover" };
+  return { scene, camera, update, cleanup, type: 'list-hover' };
 }
 
 /*
@@ -671,23 +639,16 @@ Bulge Effect for Grid Tab
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
 */
 function initBulgeEffects() {
-  if (IS_MOBILE || REDUCED_MOTION) {
-    console.log("Skipping bulge effects");
-    return;
-  }
-
   console.log("initBulgeEffects called");
 
   // Only run if we're on the grid tab
-  if (window.WebGLEffects.getCurrentTab() !== "Tab 1") {
-    console.log("Skipping bulge effect - wrong tab");
+  if (window.WebGLEffects.getCurrentTab() !== 'Tab 1') {
+    console.log('Skipping bulge effect - wrong tab');
     return;
   }
 
   const cards = Array.from(
-    document.querySelectorAll(
-      '[data-w-tab="Tab 1"] [webgl-anime="image-hover"]'
-    )
+    document.querySelectorAll('[data-w-tab="Tab 1"] [webgl-anime="image-hover"]')
   );
   console.log("Cards found:", cards.length);
 
@@ -725,7 +686,7 @@ function initBulgeEffects() {
     console.log("Processing card:", i);
 
     // remove old canvases if they exist
-    card.querySelectorAll(".work-canvas").forEach((el) => {
+    card.querySelectorAll(".work-canvas").forEach(el => {
       console.log("Removed old canvas from card", i);
       el.remove();
     });
@@ -761,7 +722,7 @@ function initBulgeEffects() {
       antialias: true,
     });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(DPR);
+    renderer.setPixelRatio(window.devicePixelRatio);
 
     // Add class
     renderer.domElement.classList.add("work-canvas");
@@ -785,17 +746,17 @@ function initBulgeEffects() {
 
     let animationId;
 
-    const cardData = {
-      card,
-      renderer,
-      scene,
-      camera,
-      material,
-      geometry,
+    const cardData = { 
+      card, 
+      renderer, 
+      scene, 
+      camera, 
+      material, 
+      geometry, 
       texture,
-      animationId: null,
+      animationId: null
     };
-
+    
     planes.push(cardData);
 
     // Mouse move
@@ -813,18 +774,19 @@ function initBulgeEffects() {
     });
 
     function animate() {
-      if (window.WebGLEffects.getCurrentTab() !== "Tab 1") return;
-      requestAnimationFrame(animate);
-      material.uniforms.uHover.value *= 0.97;
-      renderer.render(scene, camera);
+      // Only animate if we're still on the grid tab
+      if (window.WebGLEffects.getCurrentTab() === 'Tab 1') {
+        cardData.animationId = requestAnimationFrame(animate);
+        material.uniforms.uHover.value *= 0.97;
+        renderer.render(scene, camera);
+      }
     }
-
     animate();
 
     // Responsive
     const resizeHandler = () => {
-      if (window.WebGLEffects.getCurrentTab() !== "Tab 1") return;
-
+      if (window.WebGLEffects.getCurrentTab() !== 'Tab 1') return;
+      
       const width = card.offsetWidth;
       const height = card.offsetHeight;
       renderer.setSize(width, height);
@@ -836,9 +798,9 @@ function initBulgeEffects() {
       mesh.scale.set(width, height, 1);
       console.log("Resized card", i);
     };
-
+    
     window.addEventListener("resize", resizeHandler);
-
+    
     // Store resize handler for cleanup
     cardData.resizeHandler = resizeHandler;
   });
@@ -852,32 +814,32 @@ function cleanupBulgeEffects() {
   if (window.currentBulgePlanes) {
     window.currentBulgePlanes.forEach((plane, i) => {
       console.log("Cleaning up plane", i);
-
+      
       // Cancel animation
       if (plane.animationId) {
         cancelAnimationFrame(plane.animationId);
       }
-
+      
       // Remove event listeners
       if (plane.resizeHandler) {
         window.removeEventListener("resize", plane.resizeHandler);
       }
-
+      
       // Dispose resources
       if (plane.geometry) plane.geometry.dispose();
       if (plane.material) plane.material.dispose();
       if (plane.texture) plane.texture.dispose();
       if (plane.renderer) plane.renderer.dispose();
-
+      
       // Remove canvas
-      const canvas = plane.card.querySelector(".work-canvas");
+      const canvas = plane.card.querySelector('.work-canvas');
       if (canvas) canvas.remove();
-
+      
       // Show original image
-      const img = plane.card.querySelector("img");
-      if (img) img.style.opacity = "1";
+      const img = plane.card.querySelector('img');
+      if (img) img.style.opacity = '1';
     });
-
+    
     window.currentBulgePlanes = [];
   }
 }
@@ -890,21 +852,20 @@ Initialize on load
 document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     console.log("DOMContentLoaded init");
-
+    
     // Initialize effects based on current tab
     const currentTab = window.WebGLEffects.getCurrentTab();
     console.log("Current tab on load:", currentTab);
-
+    
     window.WebGLEffects.initTabEffects(currentTab);
-
+    
     // Fallback: If no effects were initialized, try again with Tab 2
     setTimeout(() => {
       if (window.WebGLEffects.renderer) {
-        const hasEffects =
-          window.WebGLEffects.renderer.info?.render?.triangles > 0;
+        const hasEffects = window.WebGLEffects.renderer.info?.render?.triangles > 0;
         if (!hasEffects) {
-          console.log("No effects detected, forcing Tab 2 initialization");
-          window.WebGLEffects.initTabEffects("Tab 2");
+          console.log('No effects detected, forcing Tab 2 initialization');
+          window.WebGLEffects.initTabEffects('Tab 2');
         }
       }
     }, 500);
@@ -914,23 +875,30 @@ document.addEventListener("DOMContentLoaded", () => {
 if (document.readyState !== "loading") {
   setTimeout(() => {
     console.log("Page already loaded, init immediately");
-
+    
     // Initialize effects based on current tab
     const currentTab = window.WebGLEffects.getCurrentTab();
     console.log("Current tab on load:", currentTab);
-
+    
     window.WebGLEffects.initTabEffects(currentTab);
-
+    
     // Fallback: If no effects were initialized, try again with Tab 2
     setTimeout(() => {
       if (window.WebGLEffects.renderer) {
-        console.log("Checking if effects are running...");
+        console.log('Checking if effects are running...');
         // Force Tab 2 initialization if screen is still black
-        window.WebGLEffects.initTabEffects("Tab 2");
+        window.WebGLEffects.initTabEffects('Tab 2');
       }
     }, 500);
   }, 100);
 }
+
+
+
+
+
+
+
 
 /*
 ☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰☰
@@ -940,15 +908,15 @@ Footer Grid Distortion Effect (Based on webgl-grid-anime)
 function initFooterBulgeEffect() {
   console.log("🎨 Initializing Footer Grid Effect");
 
-  const footerSection = document.querySelector(".footer-section");
-  const footerContainer = document.querySelector(".footer-bg");
-
+  const footerSection = document.querySelector('.footer-section');
+  const footerContainer = document.querySelector('.footer-bg');
+  
   if (!footerSection || !footerContainer) {
     console.warn("Footer elements not found");
     return;
   }
 
-  const img = footerContainer.querySelector(".footer-bg-image");
+  const img = footerContainer.querySelector('.footer-bg-image');
   if (!img) {
     console.warn("Footer background image not found");
     return;
@@ -969,7 +937,7 @@ function initFooterBulgeEffect() {
   const textureLoader = new THREE.TextureLoader();
   textureLoader.load(img.src, (texture) => {
     console.log("🖼️ Footer texture loaded");
-
+    
     const imgRatio = img.naturalWidth / img.naturalHeight;
     const scene = new THREE.Scene();
 
@@ -1069,10 +1037,10 @@ function initFooterBulgeEffect() {
     });
 
     const mesh = new THREE.Mesh(geometry, material);
-
+    
     // Calculate initial cover scaling
     let scaleX, scaleY;
-
+    
     if (containerRatio > imgRatio) {
       // Container is wider than image - scale to width
       scaleX = containerRatio / imgRatio;
@@ -1082,7 +1050,7 @@ function initFooterBulgeEffect() {
       scaleX = 1;
       scaleY = imgRatio / containerRatio;
     }
-
+    
     mesh.scale.set(2 * imgRatio * scaleX, 2 * scaleY, 1);
     scene.add(mesh);
 
@@ -1096,16 +1064,16 @@ function initFooterBulgeEffect() {
     function resize() {
       const width = footerContainer.offsetWidth;
       const height = footerContainer.offsetHeight;
-
+      
       // Set canvas to full container size
       renderer.setSize(width, height);
       renderer.domElement.style.width = `100%`;
       renderer.domElement.style.height = `100%`;
-
+      
       // Calculate cover scaling for the image
       const containerRatio = width / height;
       let scaleX, scaleY;
-
+      
       if (containerRatio > imgRatio) {
         // Container is wider than image - scale to width
         scaleX = containerRatio / imgRatio;
@@ -1115,17 +1083,17 @@ function initFooterBulgeEffect() {
         scaleX = 1;
         scaleY = imgRatio / containerRatio;
       }
-
+      
       // Update geometry scale for cover behavior
       mesh.scale.set(2 * imgRatio * scaleX, 2 * scaleY, 1);
-
+      
       // Update camera for new aspect ratio
       camera.left = -containerRatio;
       camera.right = containerRatio;
       camera.top = 1;
       camera.bottom = -1;
       camera.updateProjectionMatrix();
-
+      
       uniforms.u_resolution.value.set(width, height);
     }
 
@@ -1181,7 +1149,7 @@ function initFooterBulgeEffect() {
       footerSection.removeEventListener("mouseenter", handleFooterMouseEnter);
       footerSection.removeEventListener("mouseleave", handleFooterMouseLeave);
       window.removeEventListener("resize", resize);
-
+      
       if (animationId) {
         cancelAnimationFrame(animationId);
       }
@@ -1199,22 +1167,10 @@ function initFooterBulgeEffect() {
 
     // Hide original image
     img.style.visibility = "hidden";
-
+    
     console.log("✅ Footer grid effect initialized successfully!");
   });
 }
-let footerInit = false;
 
-const footerObserver = new IntersectionObserver(
-  (entries) => {
-    if (entries[0].isIntersecting && !footerInit) {
-      footerInit = true;
-      initFooterBulgeEffect();
-      footerObserver.disconnect();
-    }
-  },
-  { rootMargin: "200px" }
-);
-
-const footer = document.querySelector(".footer-section");
-if (footer) footerObserver.observe(footer);
+// Initialize the effect
+initFooterBulgeEffect();
