@@ -138,7 +138,16 @@ if (!container || !image || typeof THREE === "undefined") {
       vec4 g = texture2D(uLogo, gUv);
       vec4 b = texture2D(uLogo, bUv);
 
-      vec4 color = vec4(r.r, g.g, b.b, g.a);
+    vec3 baseColor = vec3(r.r, g.g, b.b);
+
+// Flow-based glow
+float glow = pow(mag, 1.8);
+vec3 glowColor = baseColor * (1.0 + glow * 1.2);
+
+// Mix glow back in
+vec3 finalColor = mix(baseColor, glowColor, smoothstep(0.05, 0.4, mag));
+
+vec4 color = vec4(finalColor, g.a);
 
       if(!uIsFirstFrame){
         vec4 prev = texture2D(uPreviousFrame, uv);
