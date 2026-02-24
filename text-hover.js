@@ -316,6 +316,11 @@ function createWebGLDistortion(container, image, options = {}) {
     [flowmapA, flowmapB] = [flowmapB, flowmapA];
     [displayA, displayB] = [displayB, displayA];
     isFirstFrame = false;
+    renderer.setSize(
+  Math.max(container.clientWidth, 1),
+  Math.max(container.clientHeight, 1),
+  false
+);
   }
 
   function animate(){ render(); requestAnimationFrame(animate); }
@@ -328,10 +333,30 @@ function createWebGLDistortion(container, image, options = {}) {
   });
 }
 
-// Initialize multiple containers/images
-document.addEventListener("DOMContentLoaded", ()=>{
-  document.querySelectorAll("[data-webgl-container]").forEach(container=>{
+
+function initWebGLDistortions() {
+  if (typeof THREE === "undefined") {
+    requestAnimationFrame(initWebGLDistortions);
+    return;
+  }
+
+  document.querySelectorAll("[data-webgl-container]").forEach(container => {
+    if (container.__webglInitialized) return;
+
     const image = container.querySelector("[data-distorted-image]");
-    createWebGLDistortion(container, image);
+    if (!image) return;
+
+    // wait for image to be loaded
+    if (!image.complete) {
+      image.addEventListener("load", () => {
+        createWebGLDistortion(container, image);
+      }, { once: true });
+    } else {
+      createWebGLDistortion(container, image);
+    }
+
+    container.__webglInitialized = true;
   });
-});
+}
+
+initWebGLDistortions();
