@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 
 function createWebGLDistortion(container, image, options = {}) {
   if (!container || !image) return;
