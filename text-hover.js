@@ -330,9 +330,7 @@ function createWebGLDistortion(container, image, options = {}) {
 }
 
 // Initialize multiple containers/images
-document.addEventListener("DOMContentLoaded", ()=>{
   document.querySelectorAll("[data-webgl-container]").forEach(container=>{
     const image = container.querySelector("[data-distorted-image]");
     createWebGLDistortion(container, image);
   });
-});
