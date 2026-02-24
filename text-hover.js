@@ -1,5 +1,12 @@
 function createWebGLDistortion(container, image, options = {}) {
-  if (!container || !image || typeof THREE === "undefined") return;
+if (!container || !image || typeof THREE === "undefined") {
+  console.warn("[WebGLDistortion] Init skipped:", {
+    containerExists: !!container,
+    imageExists: !!image,
+    threeAvailable: typeof THREE !== "undefined"
+  });
+  return;
+}
 
   /* ================= SETTINGS ================= */
 
