@@ -310,21 +310,51 @@ function initWebGLDistortions() {
     return;
   }
 
-  document.querySelectorAll("[data-webgl-container]").forEach(container => {
-    if (container.__webglInitialized) return;
+  const observer = new IntersectionObserver(
+    entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
 
-    const image = container.querySelector("[data-distorted-image]");
-    if (!image) return;
+        const container = entry.target;
+        if (container.__webglInitialized) return;
 
-    if (!image.complete) {
-      image.addEventListener("load", () => {
-        createWebGLDistortion(container, image);
-      }, { once: true });
-    } else {
-      createWebGLDistortion(container, image);
+        const image = container.querySelector("[data-distorted-image]");
+        if (!image) {
+          console.warn("[WebGLDistortion] No image found in container", container);
+          return;
+        }
+
+        console.log("[WebGLDistortion] Container entered viewport");
+
+        const start = () => {
+          console.log("[WebGLDistortion] Initializing distortion");
+          createWebGLDistortion(container, image);
+          container.__webglInitialized = true;
+          observer.unobserve(container);
+        };
+
+        // Wait for lazy image to ACTUALLY be ready
+        if (image.complete && image.naturalWidth > 0) {
+          start();
+        } else {
+          image.addEventListener(
+            "load",
+            () => {
+              image.decode?.().finally(start);
+            },
+            { once: true }
+          );
+        }
+      });
+    },
+    {
+      rootMargin: "200px", // preload before visible
+      threshold: 0.01
     }
+  );
 
-    container.__webglInitialized = true;
+  document.querySelectorAll("[data-webgl-container]").forEach(container => {
+    observer.observe(container);
   });
 }
 
