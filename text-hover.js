@@ -1,9 +1,9 @@
-console.log("[WebGLDistortion] file loaded");
+/* ================= WEBGL DISTORTION (FINAL) ================= */
 
 function createWebGLDistortion(container, image, options = {}) {
   if (!container || !image || typeof THREE === "undefined") return;
 
-  /* ================= SETTINGS ================= */
+  /* ========== SETTINGS ========== */
 
   const settings = {
     falloff: 0.12,
@@ -20,7 +20,7 @@ function createWebGLDistortion(container, image, options = {}) {
     ...options
   };
 
-  /* ================= CANVAS ================= */
+  /* ========== CANVAS ========== */
 
   let canvas = container.querySelector("[webgl-distorted-canvas]");
   if (!canvas) {
@@ -34,20 +34,28 @@ function createWebGLDistortion(container, image, options = {}) {
     container.appendChild(canvas);
   }
 
-  /* ================= THREE CORE ================= */
+  /* ========== THREE CORE ========== */
 
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    alpha: true,
+    antialias: false
+  });
+
   renderer.setClearColor(0, 0, 0, 0);
   renderer.autoClear = false;
-  renderer.outputColorSpace = THREE.SRGBColorSpace; // 🔥 IMPORTANT
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  /* ========== MOUSE STATE ========== */
 
   const mouse = {
     current: new THREE.Vector2(-1, -1),
     target: new THREE.Vector2(-1, -1),
+    last: new THREE.Vector2(-1, -1),
     velocity: new THREE.Vector2(),
-    last: new THREE.Vector2(),
     smooth: new THREE.Vector2()
   };
 
@@ -55,13 +63,13 @@ function createWebGLDistortion(container, image, options = {}) {
   let flowmapMat, distortionMat, mesh;
   let isFirstFrame = true;
 
-  /* ================= SHADERS ================= */
+  /* ========== SHADERS ========== */
 
   const vertexShader = `
     varying vec2 vUv;
-    void main() {
+    void main(){
       vUv = uv;
-      gl_Position = vec4(position, 1.0);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
     }
   `;
 
@@ -75,23 +83,20 @@ function createWebGLDistortion(container, image, options = {}) {
     uniform float uAspect;
     varying vec2 vUv;
 
-    void main() {
-      vec2 uv = vUv;
-      vec4 color = texture2D(uTexture, uv);
+    void main(){
+      vec4 color = texture2D(uTexture, vUv);
       color.rgb *= uDissipation;
 
-      vec2 cursor = uMouse;
-      vec2 aspectUv = uv;
-      aspectUv.x *= uAspect;
-      cursor.x *= uAspect;
+      vec2 uv = vUv;
+      vec2 m = uMouse;
+      uv.x *= uAspect;
+      m.x *= uAspect;
 
-      float dist = distance(aspectUv, cursor);
-      float influence = 1.0 - smoothstep(0.0, uFalloff, dist);
+      float d = distance(uv, m);
+      float f = 1.0 - smoothstep(0.0, uFalloff, d);
 
-      vec2 vel = vec2(uVelocity.x, -uVelocity.y) * influence * uAlpha;
+      vec2 vel = vec2(uVelocity.x, -uVelocity.y) * f * uAlpha;
       color.rg += vel;
-
-      // 🔥 OLD ENERGY CHANNEL
       color.b = length(color.rg) * 2.0;
 
       gl_FragColor = color;
@@ -111,39 +116,46 @@ function createWebGLDistortion(container, image, options = {}) {
     uniform bool uIsFirstFrame;
     varying vec2 vUv;
 
-    void main() {
-      vec2 uv = vUv;
-      vec3 flow = texture2D(uFlowmap, uv).rgb;
-      float energy = length(flow.rg);
+    void main(){
+      vec3 flow = texture2D(uFlowmap, vUv).rgb;
+      float mag = length(flow.rg);
 
-      vec2 distortedUv = uv + flow.rg * uDistortionStrength;
+      vec2 uv = vUv + flow.rg * uDistortionStrength;
 
-      float aberr = energy * uChromaticAberration * 2.0;
-      vec2 dir = energy > 0.0 ? normalize(flow.rg) : vec2(0.0);
+      float ab = mag * uChromaticAberration * 2.0;
+      vec2 dir = mag > 0.0 ? normalize(flow.rg) : vec2(0.0);
 
-      vec4 r = texture2D(uLogo, distortedUv + dir * aberr * uChromaticSpread);
-      vec4 g = texture2D(uLogo, distortedUv);
-      vec4 b = texture2D(uLogo, distortedUv - dir * aberr * uChromaticSpread);
+      vec4 r = texture2D(uLogo, uv + dir * ab * uChromaticSpread);
+      vec4 g = texture2D(uLogo, uv);
+      vec4 b = texture2D(uLogo, uv - dir * ab * uChromaticSpread);
 
-      // 🔥 EXACT OLD WHITE HOTSPOT
-      vec3 baseColor = vec3(r.r, g.g, b.b);
-      vec3 glow = baseColor + vec3(energy * energy * 1.6);
-      glow = min(glow, vec3(1.8));
+      vec3 base = vec3(r.r, g.g, b.b);
 
-      vec4 color = vec4(glow, g.a);
+      float glow = pow(mag, 1.8);
+      vec3 glowCol = base * (1.0 + glow * 1.2);
+      vec3 col = mix(base, glowCol, smoothstep(0.05, 0.4, mag));
 
-      // 🔥 MOTION TRAIL
-      if (!uIsFirstFrame) {
-        vec4 prev = texture2D(uPreviousFrame, uv);
-        float blur = smoothstep(uMotionBlurThreshold, uMotionBlurThreshold + 0.05, energy);
-        color.rgb = mix(color.rgb, prev.rgb, blur * uMotionBlurStrength * uMotionBlurDecay * 1.3);
+      vec4 outColor = vec4(col, g.a);
+
+      if(!uIsFirstFrame){
+        vec4 prev = texture2D(uPreviousFrame, vUv);
+        float blur = smoothstep(
+          uMotionBlurThreshold,
+          uMotionBlurThreshold + 0.05,
+          mag
+        );
+        outColor.rgb = mix(
+          outColor.rgb,
+          prev.rgb,
+          blur * uMotionBlurStrength * uMotionBlurDecay
+        );
       }
 
-      gl_FragColor = color;
+      gl_FragColor = outColor;
     }
   `;
 
-  /* ================= RENDER TARGET ================= */
+  /* ========== RENDER TARGET ========== */
 
   function createRT(w, h) {
     return new THREE.WebGLRenderTarget(w, h, {
@@ -156,7 +168,7 @@ function createWebGLDistortion(container, image, options = {}) {
     });
   }
 
-  /* ================= SETUP ================= */
+  /* ========== SETUP ========== */
 
   function setup(texture) {
     const w = Math.max(container.clientWidth, 1);
@@ -205,52 +217,57 @@ function createWebGLDistortion(container, image, options = {}) {
       }
     });
 
-mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), flowmapMat);
-scene.add(mesh);
+    mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), flowmapMat);
+    scene.add(mesh);
 
-/* ================= MOUSE EVENTS (MISSING PART) ================= */
-
-container.addEventListener("mousemove", e => {
-  const r = container.getBoundingClientRect();
-  mouse.target.set(
-    (e.clientX - r.left) / r.width,
-    1 - (e.clientY - r.top) / r.height
-  );
-});
-
-container.addEventListener("mouseenter", e => {
-  const r = container.getBoundingClientRect();
-  const x = (e.clientX - r.left) / r.width;
-  const y = 1 - (e.clientY - r.top) / r.height;
-  mouse.current.set(x, y);
-  mouse.target.set(x, y);
-  mouse.last.set(x, y);
-});
-
-container.addEventListener("mouseleave", () => {
-  mouse.target.set(-1, -1);
-});
-
-/* =============================================================== */
-
-animate();
+    bindMouse();
+    animate();
   }
+
+  /* ========== MOUSE EVENTS ========== */
+
+  function bindMouse() {
+    container.addEventListener("mousemove", e => {
+      const r = container.getBoundingClientRect();
+      mouse.target.set(
+        (e.clientX - r.left) / r.width,
+        1 - (e.clientY - r.top) / r.height
+      );
+    });
+
+    container.addEventListener("mouseenter", e => {
+      const r = container.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width;
+      const y = 1 - (e.clientY - r.top) / r.height;
+      mouse.current.set(x, y);
+      mouse.target.set(x, y);
+      mouse.last.set(x, y);
+    });
+
+    container.addEventListener("mouseleave", () => {
+      mouse.target.set(-1, -1);
+    });
+  }
+
+  /* ========== UPDATE ========== */
 
   function updateMouse() {
     mouse.last.copy(mouse.current);
     mouse.current.lerp(mouse.target, 0.7);
-    const delta = new THREE.Vector2(
+
+    const d = new THREE.Vector2(
       mouse.current.x - mouse.last.x,
       mouse.current.y - mouse.last.y
     ).multiplyScalar(80);
-    mouse.velocity.lerp(delta, 0.6).multiplyScalar(settings.velocityDamping);
+
+    mouse.velocity.lerp(d, 0.6).multiplyScalar(settings.velocityDamping);
     mouse.smooth.lerp(mouse.velocity, 0.3);
   }
 
   function render() {
     updateMouse();
 
-    flowmapMat.uniforms.uVelocity.value.copy(mouse.smooth);
+    flowmapMat.uniforms.uVelocity.value.copy(mouse.smooth).multiplyScalar(settings.velocityScale);
     flowmapMat.uniforms.uTexture.value = flowmapB.texture;
 
     mesh.material = flowmapMat;
@@ -270,6 +287,7 @@ animate();
 
     [flowmapA, flowmapB] = [flowmapB, flowmapA];
     [displayA, displayB] = [displayB, displayA];
+
     isFirstFrame = false;
   }
 
@@ -278,7 +296,7 @@ animate();
     requestAnimationFrame(animate);
   }
 
-  /* ================= TEXTURE LOAD ================= */
+  /* ========== LOAD IMAGE ========== */
 
   new THREE.TextureLoader().load(image.currentSrc || image.src, tex => {
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -290,32 +308,11 @@ animate();
   });
 }
 
-/* ================= INTERSECTION INIT ================= */
+/* ========== INIT ========== */
 
-function initWebGLDistortions() {
-  if (typeof THREE === "undefined") return;
-
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      const container = entry.target;
-      if (container.__webglInitialized) return;
-
-      const image = container.querySelector("[data-distorted-image]");
-      if (!image) return;
-
-      const start = () => {
-        createWebGLDistortion(container, image);
-        container.__webglInitialized = true;
-        observer.unobserve(container);
-      };
-
-      if (image.complete && image.naturalWidth > 0) start();
-      else image.addEventListener("load", start, { once: true });
-    });
-  }, { rootMargin: "200px" });
-
-  document.querySelectorAll("[data-webgl-container]").forEach(c => observer.observe(c));
-}
-
-initWebGLDistortions();
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-webgl-container]").forEach(container => {
+    const img = container.querySelector("[data-distorted-image]");
+    if (img) createWebGLDistortion(container, img);
+  });
+});
