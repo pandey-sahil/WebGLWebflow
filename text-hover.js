@@ -6,6 +6,12 @@ if (!container || !image || typeof THREE === "undefined") {
     threeAvailable: typeof THREE !== "undefined"
   });
   return;
+} else {
+  console.log("[WebGLDistortion] Initializing:", {
+    container,
+    image,
+    threeAvailable: true
+  });
 }
 
   /* ================= SETTINGS ================= */
