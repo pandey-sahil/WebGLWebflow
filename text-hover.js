@@ -205,10 +205,35 @@ function createWebGLDistortion(container, image, options = {}) {
       }
     });
 
-    mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), flowmapMat);
-    scene.add(mesh);
+mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), flowmapMat);
+scene.add(mesh);
 
-    animate();
+/* ================= MOUSE EVENTS (MISSING PART) ================= */
+
+container.addEventListener("mousemove", e => {
+  const r = container.getBoundingClientRect();
+  mouse.target.set(
+    (e.clientX - r.left) / r.width,
+    1 - (e.clientY - r.top) / r.height
+  );
+});
+
+container.addEventListener("mouseenter", e => {
+  const r = container.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width;
+  const y = 1 - (e.clientY - r.top) / r.height;
+  mouse.current.set(x, y);
+  mouse.target.set(x, y);
+  mouse.last.set(x, y);
+});
+
+container.addEventListener("mouseleave", () => {
+  mouse.target.set(-1, -1);
+});
+
+/* =============================================================== */
+
+animate();
   }
 
   function updateMouse() {
