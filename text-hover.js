@@ -1,3 +1,4 @@
+console.log("[WebGLDistortion] file loaded");
 function createWebGLDistortion(container, image, options = {}) {
 if (!container || !image || typeof THREE === "undefined") {
   console.warn("[WebGLDistortion] Init skipped:", {
