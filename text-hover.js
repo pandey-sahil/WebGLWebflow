@@ -1,19 +1,7 @@
 console.log("[WebGLDistortion] file loaded");
+
 function createWebGLDistortion(container, image, options = {}) {
-if (!container || !image || typeof THREE === "undefined") {
-  console.warn("[WebGLDistortion] Init skipped:", {
-    containerExists: !!container,
-    imageExists: !!image,
-    threeAvailable: typeof THREE !== "undefined"
-  });
-  return;
-} else {
-  console.log("[WebGLDistortion] Initializing:", {
-    container,
-    image,
-    threeAvailable: true
-  });
-}
+  if (!container || !image || typeof THREE === "undefined") return;
 
   /* ================= SETTINGS ================= */
 
@@ -53,6 +41,7 @@ if (!container || !image || typeof THREE === "undefined") {
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
   renderer.setClearColor(0, 0, 0, 0);
   renderer.autoClear = false;
+  renderer.outputColorSpace = THREE.SRGBColorSpace; // 🔥 IMPORTANT
 
   const mouse = {
     current: new THREE.Vector2(-1, -1),
@@ -70,7 +59,7 @@ if (!container || !image || typeof THREE === "undefined") {
 
   const vertexShader = `
     varying vec2 vUv;
-    void main(){
+    void main() {
       vUv = uv;
       gl_Position = vec4(position, 1.0);
     }
@@ -86,7 +75,7 @@ if (!container || !image || typeof THREE === "undefined") {
     uniform float uAspect;
     varying vec2 vUv;
 
-    void main(){
+    void main() {
       vec2 uv = vUv;
       vec4 color = texture2D(uTexture, uv);
       color.rgb *= uDissipation;
@@ -101,6 +90,8 @@ if (!container || !image || typeof THREE === "undefined") {
 
       vec2 vel = vec2(uVelocity.x, -uVelocity.y) * influence * uAlpha;
       color.rg += vel;
+
+      // 🔥 OLD ENERGY CHANNEL
       color.b = length(color.rg) * 2.0;
 
       gl_FragColor = color;
@@ -120,39 +111,32 @@ if (!container || !image || typeof THREE === "undefined") {
     uniform bool uIsFirstFrame;
     varying vec2 vUv;
 
-    void main(){
+    void main() {
       vec2 uv = vUv;
       vec3 flow = texture2D(uFlowmap, uv).rgb;
-      float mag = length(flow.rg);
+      float energy = length(flow.rg);
 
       vec2 distortedUv = uv + flow.rg * uDistortionStrength;
 
-      float aberr = mag * uChromaticAberration * 2.0;
-      vec2 dir = mag > 0.0 ? normalize(flow.rg) : vec2(0.0);
+      float aberr = energy * uChromaticAberration * 2.0;
+      vec2 dir = energy > 0.0 ? normalize(flow.rg) : vec2(0.0);
 
-      vec2 rUv = distortedUv + dir * aberr * uChromaticSpread;
-      vec2 gUv = distortedUv;
-      vec2 bUv = distortedUv - dir * aberr * uChromaticSpread;
+      vec4 r = texture2D(uLogo, distortedUv + dir * aberr * uChromaticSpread);
+      vec4 g = texture2D(uLogo, distortedUv);
+      vec4 b = texture2D(uLogo, distortedUv - dir * aberr * uChromaticSpread);
 
-      vec4 r = texture2D(uLogo, rUv);
-      vec4 g = texture2D(uLogo, gUv);
-      vec4 b = texture2D(uLogo, bUv);
+      // 🔥 EXACT OLD WHITE HOTSPOT
+      vec3 baseColor = vec3(r.r, g.g, b.b);
+      vec3 glow = baseColor + vec3(energy * energy * 1.6);
+      glow = min(glow, vec3(1.8));
 
-    vec3 baseColor = vec3(r.r, g.g, b.b);
+      vec4 color = vec4(glow, g.a);
 
-// Flow-based glow
-float glow = pow(mag, 1.8);
-vec3 glowColor = baseColor * (1.0 + glow * 1.2);
-
-// Mix glow back in
-vec3 finalColor = mix(baseColor, glowColor, smoothstep(0.05, 0.4, mag));
-
-vec4 color = vec4(finalColor, g.a);
-
-      if(!uIsFirstFrame){
+      // 🔥 MOTION TRAIL
+      if (!uIsFirstFrame) {
         vec4 prev = texture2D(uPreviousFrame, uv);
-        float blur = smoothstep(uMotionBlurThreshold, uMotionBlurThreshold + 0.05, mag);
-        color.rgb = mix(color.rgb, prev.rgb, blur * uMotionBlurStrength * uMotionBlurDecay);
+        float blur = smoothstep(uMotionBlurThreshold, uMotionBlurThreshold + 0.05, energy);
+        color.rgb = mix(color.rgb, prev.rgb, blur * uMotionBlurStrength * uMotionBlurDecay * 1.3);
       }
 
       gl_FragColor = color;
@@ -204,6 +188,9 @@ vec4 color = vec4(finalColor, g.a);
       vertexShader,
       fragmentShader: distortionFragment,
       transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false,
       uniforms: {
         uLogo: { value: texture },
         uFlowmap: { value: null },
@@ -221,51 +208,16 @@ vec4 color = vec4(finalColor, g.a);
     mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), flowmapMat);
     scene.add(mesh);
 
-    setupEvents();
-    setupResizeObserver();
     animate();
   }
-
-  /* ================= EVENTS ================= */
-
-  function setupEvents() {
-    container.addEventListener("mousemove", e => {
-      const r = container.getBoundingClientRect();
-      mouse.target.set(
-        (e.clientX - r.left) / r.width,
-        1 - (e.clientY - r.top) / r.height
-      );
-    });
-  }
-
-  /* ================= RESIZE OBSERVER ================= */
-
-  function setupResizeObserver() {
-    const ro = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect;
-      const w = Math.max(width, 1);
-      const h = Math.max(height, 1);
-
-      renderer.setSize(w, h, false);
-      displayA.setSize(w, h);
-      displayB.setSize(w, h);
-
-      if (flowmapMat) flowmapMat.uniforms.uAspect.value = w / h;
-    });
-    ro.observe(container);
-  }
-
-  /* ================= RENDER LOOP ================= */
 
   function updateMouse() {
     mouse.last.copy(mouse.current);
     mouse.current.lerp(mouse.target, 0.7);
-
     const delta = new THREE.Vector2(
       mouse.current.x - mouse.last.x,
       mouse.current.y - mouse.last.y
     ).multiplyScalar(80);
-
     mouse.velocity.lerp(delta, 0.6).multiplyScalar(settings.velocityDamping);
     mouse.smooth.lerp(mouse.velocity, 0.3);
   }
@@ -303,68 +255,42 @@ vec4 color = vec4(finalColor, g.a);
 
   /* ================= TEXTURE LOAD ================= */
 
-  new THREE.TextureLoader().load(image.src, tex => {
+  new THREE.TextureLoader().load(image.currentSrc || image.src, tex => {
+    tex.colorSpace = THREE.SRGBColorSpace;
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.needsUpdate = true;
     setup(tex);
   });
 }
 
-/* ================= SAFE INITIALIZER ================= */
+/* ================= INTERSECTION INIT ================= */
 
 function initWebGLDistortions() {
-  if (typeof THREE === "undefined") {
-    requestAnimationFrame(initWebGLDistortions);
-    return;
-  }
+  if (typeof THREE === "undefined") return;
 
-  const observer = new IntersectionObserver(
-    entries => {
-      entries.forEach(entry => {
-        if (!entry.isIntersecting) return;
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const container = entry.target;
+      if (container.__webglInitialized) return;
 
-        const container = entry.target;
-        if (container.__webglInitialized) return;
+      const image = container.querySelector("[data-distorted-image]");
+      if (!image) return;
 
-        const image = container.querySelector("[data-distorted-image]");
-        if (!image) {
-          console.warn("[WebGLDistortion] No image found in container", container);
-          return;
-        }
+      const start = () => {
+        createWebGLDistortion(container, image);
+        container.__webglInitialized = true;
+        observer.unobserve(container);
+      };
 
-        console.log("[WebGLDistortion] Container entered viewport");
+      if (image.complete && image.naturalWidth > 0) start();
+      else image.addEventListener("load", start, { once: true });
+    });
+  }, { rootMargin: "200px" });
 
-        const start = () => {
-          console.log("[WebGLDistortion] Initializing distortion");
-          createWebGLDistortion(container, image);
-          container.__webglInitialized = true;
-          observer.unobserve(container);
-        };
-
-        // Wait for lazy image to ACTUALLY be ready
-        if (image.complete && image.naturalWidth > 0) {
-          start();
-        } else {
-          image.addEventListener(
-            "load",
-            () => {
-              image.decode?.().finally(start);
-            },
-            { once: true }
-          );
-        }
-      });
-    },
-    {
-      rootMargin: "200px", // preload before visible
-      threshold: 0.01
-    }
-  );
-
-  document.querySelectorAll("[data-webgl-container]").forEach(container => {
-    observer.observe(container);
-  });
+  document.querySelectorAll("[data-webgl-container]").forEach(c => observer.observe(c));
 }
 
 initWebGLDistortions();
